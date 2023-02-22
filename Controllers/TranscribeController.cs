@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AsyncKeyedLock;
 using Microsoft.AspNetCore.Mvc;
+using Serilog;
 
 namespace WhisperAPI.Controllers;
 
@@ -31,21 +32,18 @@ public sealed class Transcribe : ControllerBase
 
         using var loc = await _asyncKeyedLocker.LockAsync(Globals.Key).ConfigureAwait(false);
         var response = await TranscribeAudioAsync(request);
-        return Ok(response);
+        return response.Success ? Ok(response) : BadRequest(response);
     }
 
     private static async Task<PostResponse> TranscribeAudioAsync(PostRequest request)
     {
         request.Lang ??= "auto";
-        try
-        {
-            CultureInfo culture = new (request.Lang);
-            request.Lang = culture.TwoLetterISOLanguageName;
-        }
-        catch (Exception)
-        {
-            return FailResponse(Globals.ErrorCodesAndMessages.InvalidLang, Globals.ErrorCodesAndMessages.InvalidLangMessage);
-        }
+
+        if (request.Lang != "auto")
+            if (CultureInfo.GetCultures(CultureTypes.AllCultures).All(c => c.Name != request.Lang))
+                return FailResponse(Globals.ErrorCodesAndMessages.InvalidLang,
+                    Globals.ErrorCodesAndMessages.InvalidLangMessage);
+
 
         request.TimeStamps ??= false;
         request.Model ??= "base";

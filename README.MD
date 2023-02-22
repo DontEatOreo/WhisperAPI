@@ -20,8 +20,8 @@ We welcome contributions to WhisperAPI! If you would like to contribute, simply 
 If you need help with WhisperAPI, please create an issue on GitHub and I will respond as soon as possible.
 
 ## Limitations
-The number of files that can be processed simultaneously depends on the number of CPU threads available. For instance, with four threads, two files can be processed simultaneously. However, with only one thread, only one file can be processed at a time.
-File size limit is 50 MiB.
+- The number of files that can be processed simultaneously depends on the number of CPU threads available. For instance, with four threads, two files can be processed simultaneously. However, with only one thread, only one file can be processed at a time.
+- File size limit is 50 MiB.
 
 ## Environment Variables
 `WHISPER_FOLDER` - The folder where the whisper files will be stored. Default is `~/.config/whisper`
@@ -46,6 +46,11 @@ To use WhisperAPI, you will need to send a POST request to the ``/transcribe`` e
     "model": "base"
 }
 ```
+`lang`, `time_stamps` and `model` are optional properties.
+- If `lang` is omitted, it will automatically detect the language of the file.
+- If `time_stamps` is omitted, it will default to false.
+- If `model` is omitted, it will default to base.
+
 Here is a curl example of the request:
 ```bash
 curl --location --request POST 'https://localhost:7272/transcribe' \
