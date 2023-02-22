@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AsyncKeyedLock;
 using Microsoft.AspNetCore.Mvc;
-using Pastel;
 using Serilog;
 using static WhisperAPI.Globals;
 
