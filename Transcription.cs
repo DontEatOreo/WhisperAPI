@@ -34,7 +34,8 @@ public sealed class Transcription
             return (null, ErrorCodesAndMessages.InvalidFileType, ErrorCodesAndMessages.InvalidFileTypeMessage);
 
         var fileSize = fileBytes.Length;
-        if (fileSize > 31457280) // 31457280 is 30 mib
+        const int sizeLimit = 52428800; // 52428800 is 50 mib
+        if (fileSize > sizeLimit)
             return (null, ErrorCodesAndMessages.FileSizeExceeded, ErrorCodesAndMessages.FileSizeExceededMessage);
 
         var fileName = Path.Combine(WhisperFolder, $"{fileId}.{fileExtension}");
@@ -55,12 +56,14 @@ public sealed class Transcription
             transcriptionLines = transcriptionLines.Select(line => line.Replace("\"", "")).ToArray();
             var jsonLines = ConvertTranscriptionLinesToJson(transcriptionLines);
             DeleteTranscriptionFiles(fileName, audioFile, transcribedFilePath);
-            return (JsonSerializer.Serialize(jsonLines, new JsonSerializerOptions { WriteIndented = true }), null, null);
+            // trim white space
+            var serialized = JsonSerializer.Serialize(jsonLines, new JsonSerializerOptions { WriteIndented = true }).Trim();
+            return (serialized, null, null);
         }
 
         var transcribedText = await File.ReadAllTextAsync(transcribedFilePath);
         DeleteTranscriptionFiles(fileName, audioFile, transcribedFilePath);
-        return (transcribedText.TrimEnd(), null, null);
+        return (transcribedText.Trim(), null, null);
     }
 
     private static async Task DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)

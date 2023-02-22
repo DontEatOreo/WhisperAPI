@@ -37,17 +37,14 @@ public sealed class Transcribe : ControllerBase
     private static async Task<PostResponse> TranscribeAudioAsync(PostRequest request)
     {
         request.Lang ??= "auto";
-        if (request.Lang.Length > 2)
+        try
         {
-            try
-            {
-                CultureInfo culture = new (request.Lang);
-                request.Lang = culture.TwoLetterISOLanguageName;
-            }
-            catch (Exception)
-            {
-                return FailResponse(Globals.ErrorCodesAndMessages.InvalidLang, Globals.ErrorCodesAndMessages.InvalidLangMessage);
-            }
+            CultureInfo culture = new (request.Lang);
+            request.Lang = culture.TwoLetterISOLanguageName;
+        }
+        catch (Exception)
+        {
+            return FailResponse(Globals.ErrorCodesAndMessages.InvalidLang, Globals.ErrorCodesAndMessages.InvalidLangMessage);
         }
 
         request.TimeStamps ??= false;

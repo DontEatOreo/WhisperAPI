@@ -1,4 +1,5 @@
 using AsyncKeyedLock;
+using Serilog;
 using WhisperAPI;
 
 await GlobalChecks.CheckForFFmpeg();
@@ -8,7 +9,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 builder.Services.AddHttpsRedirection(options =>
 {
     options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
@@ -22,15 +22,13 @@ builder.Services.AddSingleton(new AsyncKeyedLocker<string>(o =>
     // This ensures each instance has a minimum of two threads to work with, unless the CPU only possesses a single thread.
     o.MaxCount = Globals.ThreadCount > 1 ? Globals.ThreadCount / 2 : 1;
 }));
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console());
 
 var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
 
 app.UseHttpsRedirection();
 
