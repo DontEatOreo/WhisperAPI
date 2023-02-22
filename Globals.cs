@@ -42,8 +42,8 @@ public static class Globals
         public const string FileSizeExceeded = "FILE_SIZE_EXCEEDED";
         public const string FileSizeExceededMessage = "The provided file is too big. Max size is 30MB.";
 
-        public const string InvalidLang = "INVALID_LANG";
-        public const string InvalidLangMessage = "The provided language is not a valid option";
+        public const string InvalidLanguage = "INVALID_LANG";
+        public const string InvalidLanguageMessage = "The provided language is not a valid option";
     }
 
     /// <summary>

@@ -3,7 +3,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AsyncKeyedLock;
 using Microsoft.AspNetCore.Mvc;
+using Pastel;
 using Serilog;
+using static WhisperAPI.Globals;
 
 namespace WhisperAPI.Controllers;
 
@@ -28,45 +30,59 @@ public sealed class Transcribe : ControllerBase
     public async Task<IActionResult> Post([FromBody] PostRequest request)
     {
         if (string.IsNullOrEmpty(request.File))
-            return BadRequest(FailResponse(Globals.ErrorCodesAndMessages.NoFile, Globals.ErrorCodesAndMessages.NoFileMessage));
+            return BadRequest(FailResponse(ErrorCodesAndMessages.NoFile, ErrorCodesAndMessages.NoFileMessage));
 
-        using var loc = await _asyncKeyedLocker.LockAsync(Globals.Key).ConfigureAwait(false);
+        using var loc = await _asyncKeyedLocker.LockAsync(Key).ConfigureAwait(false);
         var response = await TranscribeAudioAsync(request);
         return response.Success ? Ok(response) : BadRequest(response);
     }
 
     private static async Task<PostResponse> TranscribeAudioAsync(PostRequest request)
     {
-        request.Lang ??= "auto";
+        var lang = request.Lang?.Trim().ToLower();
+        lang ??= "auto";
+        if (lang != "auto")
+        {
+            if (lang.Length == 2)
+                lang = CultureInfo.GetCultures(CultureTypes.AllCultures)
+                    .FirstOrDefault(c => c.TwoLetterISOLanguageName == lang)?.EnglishName;
 
-        if (request.Lang != "auto")
-            if (CultureInfo.GetCultures(CultureTypes.AllCultures).All(c => c.Name != request.Lang))
-                return FailResponse(Globals.ErrorCodesAndMessages.InvalidLang,
-                    Globals.ErrorCodesAndMessages.InvalidLangMessage);
+            if (CultureInfo.GetCultures(CultureTypes.AllCultures).All(c => !lang!.Contains(c.EnglishName)))
+            {
+                Log.Warning("Invalid language: {Lang}", lang);
+                return FailResponse(ErrorCodesAndMessages.InvalidLanguage,
+                    ErrorCodesAndMessages.InvalidLanguageMessage);
+            }
 
+            lang = new CultureInfo(lang!).TwoLetterISOLanguageName;
+        }
 
         request.TimeStamps ??= false;
         request.Model ??= "base";
         request.Translate ??= false;
 
-        if (!Enum.TryParse(request.Model, true, out Globals.WhisperModel modelEnum))
-            return FailResponse(Globals.ErrorCodesAndMessages.InvalidModel, Globals.ErrorCodesAndMessages.InvalidModelMessage);
+        if (!Enum.TryParse(request.Model, true, out WhisperModel modelEnum))
+        {
+            Log.Warning("Invalid model: {Model}", request.Model);
+            return FailResponse(ErrorCodesAndMessages.InvalidModel, ErrorCodesAndMessages.InvalidModelMessage);
+        }
 
         var result = await Transcription.TranscribeAudio(request.File!,
-            request.Lang,
+            lang,
             (bool)request.Translate,
             modelEnum,
             (bool)request.TimeStamps);
-        if (result.transcription is null)
-            return FailResponse(result.errorCode, result.errorMessage);
+        if (result.transcription is not null)
+            return new PostResponse
+            {
+                Success = true,
+                Result = (bool)request.TimeStamps
+                    ? JsonSerializer.Deserialize<List<WhisperTimeStampJson>>(result.transcription, Options)
+                    : result.transcription
+            };
 
-        return new PostResponse
-        {
-            Success = true,
-            Result = (bool)request.TimeStamps
-                ? JsonSerializer.Deserialize<List<Globals.WhisperTimeStampJson>>(result.transcription, Options)
-                : result.transcription
-        };
+        Log.Warning("Transcription failed: {ErrorCode} - {ErrorMessage}", result.errorCode, result.errorMessage);
+        return FailResponse(result.errorCode, result.errorMessage);
     }
 
     private static PostResponse FailResponse(string? errorCode, string? errorMessage)
