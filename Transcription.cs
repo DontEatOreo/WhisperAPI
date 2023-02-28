@@ -3,7 +3,6 @@ using AsyncKeyedLock;
 using CliWrap;
 using MimeDetective;
 using MimeDetective.Definitions.Licensing;
-using Pastel;
 using static WhisperAPI.Globals;
 using Serilog;
 
@@ -70,7 +69,7 @@ public sealed class Transcription
     {
         if (!File.Exists(modelPath))
         {
-            Console.WriteLine("Model doesn't exist, downloading...".Pastel("#FF0000"));
+            Log.Information("[{Message}] Model doesn't exist, downloading...", "Model doesn't exist, downloading...");
             await GlobalDownloads.DownloadModels(whisperModel);
         }
     }
