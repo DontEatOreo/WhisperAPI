@@ -19,8 +19,6 @@
     <PackageReference Include="Mime-Detective.Definitions.Condensed" Version="22.12.14" />
     <PackageReference Include="Serilog.AspNetCore" Version="6.1.1-dev-00295" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="5.0.1" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="Xabe.FFmpeg" Version="5.2.5" />
   </ItemGroup>
 
 </Project>
