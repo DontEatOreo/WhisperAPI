@@ -5,6 +5,7 @@ using MimeDetective;
 using MimeDetective.Definitions.Licensing;
 using Pastel;
 using static WhisperAPI.Globals;
+using Serilog;
 
 namespace WhisperAPI;
 
@@ -39,9 +40,9 @@ public sealed class Transcription
             return (null, ErrorCodesAndMessages.FileSizeExceeded, ErrorCodesAndMessages.FileSizeExceededMessage);
 
         var fileName = Path.Combine(WhisperFolder, $"{fileId}.{fileExtension}");
-        var audioFile = Path.Combine(WhisperFolder, $"{fileId}.wav"); // the output file
-        File.Create(fileName).Close();
-        await File.WriteAllBytesAsync(fileName, fileBytes);
+        var audioFile = Path.Combine(WhisperFolder, $"{fileId}.wav"); // the output file (It needs to be wav)
+        await using FileStream fileStream = new(fileName, FileMode.Create, FileAccess.Write);
+        await fileStream.WriteAsync(fileBytes);
 
         await ConvertFileToWav(fileName, audioFile);
 
@@ -56,7 +57,6 @@ public sealed class Transcription
             transcriptionLines = transcriptionLines.Select(line => line.Replace("\"", "")).ToArray();
             var jsonLines = ConvertTranscriptionLinesToJson(transcriptionLines);
             DeleteTranscriptionFiles(fileName, audioFile, transcribedFilePath);
-            // trim white space
             var serialized = JsonSerializer.Serialize(jsonLines, new JsonSerializerOptions { WriteIndented = true }).Trim();
             return (serialized, null, null);
         }
@@ -121,14 +121,20 @@ public sealed class Transcription
             audioFile
         };
 
-        await Cli.Wrap("ffmpeg")
-            .WithArguments(arg =>
-            {
-                foreach (var ffmpegArg in ffmpegArgs)
-                    arg.Add(ffmpegArg);
-            })
-            .WithValidation(CommandResultValidation.ZeroExitCode)
-            .ExecuteAsync();
+        try
+        {
+            await Cli.Wrap("ffmpeg")
+                .WithArguments(arg =>
+                {
+                    foreach (var ffmpegArg in ffmpegArgs)
+                        arg.Add(ffmpegArg);
+                })
+                .ExecuteAsync();
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "[{Message}] Could not convert file to wav", e.Message);
+        }
     }
 
     private static async Task TranscribeAudioFile(string audioFile,
