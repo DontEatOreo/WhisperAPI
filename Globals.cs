@@ -202,8 +202,7 @@ public static class GlobalChecks
         }
         catch (Exception)
         {
-            await Console.Error.WriteLineAsync("Whisper is not installed");
-            Log.Error("Whisper is not installed");
+            Log.Information("Whisper is not installed");
             await GlobalDownloads.DownloadWhisper();
         }
     }
