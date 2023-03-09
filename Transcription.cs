@@ -1,10 +1,14 @@
+using System.Globalization;
 using System.Text.Json;
 using AsyncKeyedLock;
 using CliWrap;
+using CsvHelper;
 using MimeDetective;
+using MimeDetective.Definitions;
 using MimeDetective.Definitions.Licensing;
-using static WhisperAPI.Globals;
 using Serilog;
+using WhisperAPI.Models;
+using static WhisperAPI.Globals;
 
 namespace WhisperAPI;
 
@@ -43,25 +47,22 @@ public sealed class Transcription
         await using FileStream fileStream = new(fileName, FileMode.Create, FileAccess.Write);
         await fileStream.WriteAsync(fileBytes);
 
-        await ConvertFileToWav(fileName, audioFile);
+        await ConvertToWav(fileName, audioFile);
 
-        // The CLI Arguments in Whisper.CPP for the output file format are `-o<extension>` so we just substring the hash with 2 to get the extension
+        // The CLI Arguments in Whisper.cpp for the output file format are `-o<extension>` so we just parse the extension after the `-o`
         var transcribedFilePath = Path.Combine(WhisperFolder, $"{audioFile}.{selectedOutputFormat[2..]}");
-        await TranscribeAudioFile(audioFile, lang, translate, selectedModelPath, selectedOutputFormat);
+        await Transcribe(audioFile, lang, translate, selectedModelPath, selectedOutputFormat);
 
         if (timeStamp)
         {
-            var transcriptionLines = await File.ReadAllLinesAsync(transcribedFilePath);
-            // Removes all quotation marks from the transcription lines
-            transcriptionLines = transcriptionLines.Select(line => line.Replace("\"", "")).ToArray();
-            var jsonLines = ConvertTranscriptionLinesToJson(transcriptionLines);
-            DeleteTranscriptionFiles(fileName, audioFile, transcribedFilePath);
+            var jsonLines = ConvertToJson(transcribedFilePath);
+            CleanUp(fileName, audioFile, transcribedFilePath);
             var serialized = JsonSerializer.Serialize(jsonLines, new JsonSerializerOptions { WriteIndented = true }).Trim();
             return (serialized, null, null);
         }
 
         var transcribedText = await File.ReadAllTextAsync(transcribedFilePath);
-        DeleteTranscriptionFiles(fileName, audioFile, transcribedFilePath);
+        CleanUp(fileName, audioFile, transcribedFilePath);
         return (transcribedText.Trim(), null, null);
     }
 
@@ -69,7 +70,7 @@ public sealed class Transcription
     {
         if (!File.Exists(modelPath))
         {
-            Log.Information("[{Message}] Model doesn't exist, downloading...", "Model doesn't exist, downloading...");
+            Log.Information("Model {WhisperModel} doesn't exist, downloading...", whisperModel);
             await GlobalDownloads.DownloadModels(whisperModel);
         }
     }
@@ -86,7 +87,7 @@ public sealed class Transcription
              */
             var inspector = new ContentInspectorBuilder
             {
-                Definitions = new MimeDetective.Definitions.CondensedBuilder
+                Definitions = new CondensedBuilder
                     { UsageType = UsageType.PersonalNonCommercial }.Build()
             }.Build();
             var definition = inspector.Inspect(fileBytes).FirstOrDefault();
@@ -105,7 +106,7 @@ public sealed class Transcription
         }
     }
 
-    private static async Task ConvertFileToWav(string fileName, string audioFile)
+    private static async Task ConvertToWav(string fileName, string audioFile)
     {
         string[] ffmpegArgs =
         {
@@ -136,7 +137,7 @@ public sealed class Transcription
         }
     }
 
-    private static async Task TranscribeAudioFile(string audioFile,
+    private static async Task Transcribe(string audioFile,
         string lang,
         bool translate,
         string modelPath,
@@ -167,37 +168,36 @@ public sealed class Transcription
             .ExecuteAsync();
     }
 
-    private static List<WhisperTimeStampJson> ConvertTranscriptionLinesToJson(IEnumerable<string> transcriptionLines)
+    private static List<TimeStamp> ConvertToJson(string path)
     {
-        List<WhisperTimeStampJson> jsonLines = new();
+        List<TimeStamp> jsonLines = new();
         /*
          * The csv format:
-         * 0, 3000, "hello"
-         * start_milliseconds, end_milliseconds, text
+         * start,end,text
+         * 0,5120," Most conversations about performance are a total waste of time, not because performance"
+         * 5120,10600," is an important, but because people feel very, very strongly about performance."
          */
-        foreach (var csvLine in transcriptionLines)
+        using StreamReader reader = new(path);
+        using CsvReader csv = new(reader, CultureInfo.InvariantCulture);
+        var records = csv.GetRecords<CsvFile>();
+
+        foreach (var record in records)
         {
-            var split = csvLine.Split(',');
-            var start = split[0];
-            var startInt = Convert.ToInt32(start);
-            startInt /= 1000; // Convert milliseconds to seconds
-            var end = split[1];
-            var endInt = Convert.ToInt32(end);
-            endInt /= 1000; // Convert milliseconds to seconds
-            var text = split[2];
-            text = text.Trim();
-            WhisperTimeStampJson jsonLine = new()
+            var text = record.Text.Trim();
+            var start = int.TryParse(record.Start, out var startInt) ? TimeSpan.FromMilliseconds(startInt) : TimeSpan.Zero;
+            var end = int.TryParse(record.End, out var endInt) ? TimeSpan.FromMilliseconds(endInt) : TimeSpan.Zero;
+            jsonLines.Add(new TimeStamp
             {
-                Start = startInt,
-                End = endInt,
+                Start = (int)start.TotalSeconds,
+                End = (int)end.TotalSeconds,
                 Text = text
-            };
-            jsonLines.Add(jsonLine);
+            });
         }
+
         return jsonLines;
     }
 
-    private static void DeleteTranscriptionFiles(params string[] filePaths)
+    private static void CleanUp(params string[] filePaths)
     {
         foreach (var filePath in filePaths)
             File.Delete(filePath);

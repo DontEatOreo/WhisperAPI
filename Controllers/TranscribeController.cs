@@ -4,20 +4,19 @@ using System.Text.Json.Serialization;
 using AsyncKeyedLock;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
+using WhisperAPI.Models;
 using static WhisperAPI.Globals;
 
 namespace WhisperAPI.Controllers;
 
 [ApiController]
-[Route("transcribe")]
+[Route("[controller]")]
 public sealed class Transcribe : ControllerBase
 {
     private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
 
     public Transcribe(AsyncKeyedLocker<string> asyncKeyedLocker)
-    {
-        _asyncKeyedLocker = asyncKeyedLocker;
-    }
+        => _asyncKeyedLocker = asyncKeyedLocker;
 
     private static readonly JsonSerializerOptions? Options = new()
     {
@@ -42,7 +41,7 @@ public sealed class Transcribe : ControllerBase
         lang ??= "auto";
         if (lang != "auto")
         {
-            if (lang.Length == 2)
+            if (lang.Length is 2)
                 lang = CultureInfo.GetCultures(CultureTypes.AllCultures)
                     .FirstOrDefault(c => c.TwoLetterISOLanguageName == lang)?.EnglishName;
 
@@ -76,7 +75,7 @@ public sealed class Transcribe : ControllerBase
             {
                 Success = true,
                 Result = (bool)request.TimeStamps
-                    ? JsonSerializer.Deserialize<List<WhisperTimeStampJson>>(result.transcription, Options)
+                    ? JsonSerializer.Deserialize<List<TimeStamp>>(result.transcription, Options)
                     : result.transcription
             };
 
@@ -94,40 +93,4 @@ public sealed class Transcribe : ControllerBase
         });
         return JsonSerializer.Deserialize<PostResponse>(result, Options)!;
     }
-}
-
-public class PostRequest
-{
-    [JsonPropertyName("file")]
-    public string? File { get; set; }
-
-    [JsonPropertyName("time_stamps")]
-    public bool? TimeStamps { get; set; }
-
-    [JsonPropertyName("lang")]
-    public string? Lang { get; set; }
-
-    [JsonPropertyName("translate")]
-    public bool? Translate { get; set; }
-
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
-}
-
-public class PostResponse
-{
-    [JsonPropertyName("success")]
-    public bool Success { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error_code")]
-    public string? ErrorCode { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error_message")]
-    public string? ErrorMessage { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("result")]
-    public object? Result { get; set; }
 }

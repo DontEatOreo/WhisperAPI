@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using System.Diagnostics;
 using CliWrap;
 using Serilog;
 using static WhisperAPI.Globals;
@@ -7,6 +7,8 @@ namespace WhisperAPI;
 
 public static class Globals
 {
+    #region Strings
+
     /// <summary>
     /// This variable is responsible for where WhisperModels will be downloaded to and where the audio files will be stored.
     /// </summary>
@@ -23,7 +25,22 @@ public static class Globals
     /// </summary>
     public const string Key = "GlobalKey";
 
+    /// <summary>
+    /// This is the URL for the Whisper source code
+    /// </summary>
+    public const string WhisperUrl = "https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip";
+
+    #endregion
+
+    /// <summary>
+    /// CPU Thread Count
+    /// </summary>
     public static readonly int ThreadCount = Environment.ProcessorCount;
+
+    /// <summary>
+    ///  A Global static instance of HttpClient
+    /// </summary>
+    public static readonly HttpClient HttpClient = new();
 
     /// <summary>
     /// Struct containing all error codes and messages
@@ -75,18 +92,6 @@ public static class Globals
         { true, "-ocsv" },
         { false, "-otxt" }
     };
-
-    public class WhisperTimeStampJson
-    {
-        [JsonPropertyName("start")]
-        public int Start { get; set; }
-
-        [JsonPropertyName("end")]
-        public int End { get; set; }
-
-        [JsonPropertyName("text")]
-        public string? Text { get; set; }
-    }
 }
 
 public static class GlobalDownloads
@@ -94,26 +99,76 @@ public static class GlobalDownloads
     public static async Task DownloadModels(WhisperModel whisperModel)
     {
         var modelString = whisperModel.ToString().ToLower();
-        // https://huggingface.co/datasets/ggerganov/whisper.cpp/tree/main
+        // Source: https://huggingface.co/datasets/ggerganov/whisper.cpp/tree/main
         var modelUrl = $"https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-{modelString}.bin";
         var modelPath = Path.Combine(WhisperFolder, $"ggml-{modelString}.bin");
 
-        string[] curlArgs = { "-L", modelUrl, "-o", modelPath };
-        try
+        var download = await Globals.HttpClient.GetAsync(modelUrl).ContinueWith(async task =>
         {
-            await Cli.Wrap("curl")
-                .WithArguments(arg =>
-                {
-                    foreach (var curlArg in curlArgs)
-                        arg.Add(curlArg);
-                })
-                .ExecuteAsync();
-        }
-        catch (Exception)
-        {
+            using var response = await task;
+            using var content = response.Content;
+            await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await content.CopyToAsync(fileStream);
+        });
+        if (!download.IsCompletedSuccessfully)
             Log.Error("Failed to download the model");
-            Environment.Exit(1);
-        }
+    }
+
+    public static async Task DownloadWhisper()
+    {
+        var fileName = Path.GetFileName(WhisperUrl);
+
+        var tempPath = Path.GetTempPath();
+        var zipPath = Path.Combine(tempPath, fileName);
+        var unzipPath = Path.Combine(tempPath, "whisper.cpp-master");
+        if (Directory.Exists(unzipPath))
+            Directory.Delete(unzipPath, true);
+
+        Log.Information("Downloading Whisper...");
+        await Globals.HttpClient.GetAsync(WhisperUrl).ContinueWith(async task =>
+        {
+            using var response = await task;
+            using var content = response.Content;
+            await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await content.CopyToAsync(fileStream);
+        });
+
+        Log.Information("Unzipping Whisper...");
+        await Cli.Wrap("unzip")
+            .WithArguments(arg =>
+            {
+                arg.Add(zipPath);
+            })
+            .WithWorkingDirectory(tempPath)
+            .WithValidation(CommandResultValidation.None)
+            .ExecuteAsync();
+
+        // For some reason using Cli.Wrap it's not possible to compile Whisper
+        Log.Information("Compiling Whisper...");
+        using Process process = new()
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "make",
+                WorkingDirectory = unzipPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+        process.Start();
+        await process.WaitForExitAsync();
+        Log.Information("Finished compiling Whisper");
+
+        if (File.Exists(WhisperExecPath))
+            File.Delete(WhisperExecPath);
+
+        if (!Directory.Exists(WhisperFolder))
+            Directory.CreateDirectory(WhisperFolder);
+
+        File.Move(Path.Combine(unzipPath, "main"), Path.Combine(WhisperFolder, "main"));
+        File.Delete(zipPath);
+        Directory.Delete(unzipPath, true);
     }
 }
 
@@ -130,6 +185,7 @@ public static class GlobalChecks
         }
         catch (Exception)
         {
+            await Console.Error.WriteLineAsync("FFmpeg is not installed");
             Log.Error("FFmpeg is not installed");
             Environment.Exit(1);
         }
@@ -141,11 +197,38 @@ public static class GlobalChecks
         {
             await Cli.Wrap(WhisperExecPath)
                 .WithArguments("-h")
+                .WithValidation(CommandResultValidation.ZeroExitCode)
                 .ExecuteAsync();
         }
         catch (Exception)
         {
+            await Console.Error.WriteLineAsync("Whisper is not installed");
             Log.Error("Whisper is not installed");
+            await GlobalDownloads.DownloadWhisper();
+        }
+    }
+
+    /// <summary>
+    /// We're using Process because Cli.Wrap doesn't work with make for some odd reason
+    /// </summary>
+    public static async Task CheckForMake()
+    {
+        using Process process = new()
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "make",
+                Arguments = "-v",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+        process.Start();
+        await process.WaitForExitAsync();
+        if (process.ExitCode != 0)
+        {
+            Log.Error("Make is not installed");
             Environment.Exit(1);
         }
     }
