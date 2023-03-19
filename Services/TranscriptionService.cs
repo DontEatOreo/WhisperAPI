@@ -52,7 +52,12 @@ public class TranscriptionService : ITranscriptionService
             return FailResponse(ErrorCodesAndMessages.InvalidModel, ErrorCodesAndMessages.InvalidModelMessage);
         }
 
-        var result = await ProcessAudioTranscription(request.File!, lang, (bool)request.Translate, modelEnum, (bool)request.TimeStamps);
+        var result = await ProcessAudioTranscription(request.File!,
+            lang,
+            (bool)request.Translate,
+            modelEnum,
+            (bool)request.TimeStamps);
+
         if (result.transcription is not null)
             return new PostResponse
             {
@@ -105,7 +110,7 @@ public class TranscriptionService : ITranscriptionService
         {
             var jsonLines = _transcriptionHelper.ConvertToJson(transcribedFilePath);
             _fileService.CleanUp(fileName, audioFile, transcribedFilePath);
-            var serialized = JsonSerializer.Serialize(jsonLines).Trim();
+            var serialized = JsonSerializer.Serialize(jsonLines, Options).Trim();
             return (serialized, null, null);
         }
 
