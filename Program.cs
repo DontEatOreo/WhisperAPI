@@ -3,6 +3,7 @@ using AsyncKeyedLock;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Serilog;
 using WhisperAPI;
+using WhisperAPI.Services;
 
 var builder = WebApplication.CreateBuilder();
 
@@ -19,6 +20,12 @@ builder.Services.AddSingleton(new AsyncKeyedLocker<string>(o =>
     o.MaxCount = Globals.ThreadCount > 1 ? Globals.ThreadCount / 2 : 1;
 }));
 builder.Services.Configure<KestrelServerOptions>(options => options.Limits.MaxRequestBodySize = 53248000); // 50 Mib + 100 kib
+builder.Services.AddScoped<ITranscriptionService, TranscriptionService>();
+builder.Services.AddScoped<IAudioConversionService, AudioConversionService>();
+builder.Services.AddSingleton<FileService>();
+builder.Services.AddSingleton<TranscriptionHelper>();
+builder.Services.AddSingleton<IGlobalDownloads, GlobalDownloads>();
+builder.Services.AddSingleton<IGlobalChecks, GlobalChecks>();
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .ReadFrom.Services(services)
@@ -31,11 +38,14 @@ builder.Services.AddHttpsRedirection(options =>
     options.HttpsPort = 443;
 });
 
+builder.Services.AddHttpClient();
+
 var app = builder.Build();
 
-await GlobalChecks.CheckForFFmpeg();
-await GlobalChecks.CheckForWhisper();
-await GlobalChecks.CheckForMake();
+GlobalChecks globalChecks = new();
+await globalChecks.CheckForFFmpeg();
+await globalChecks.CheckForWhisper();
+await globalChecks.CheckForMake();
 
 if (!app.Environment.IsDevelopment())
 {

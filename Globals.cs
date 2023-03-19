@@ -1,9 +1,27 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CliWrap;
+using JetBrains.Annotations;
 using Serilog;
 using static WhisperAPI.Globals;
 
 namespace WhisperAPI;
+
+public interface IGlobalDownloads
+{
+    Task DownloadModels(WhisperModel whisperModel);
+}
+
+public interface IGlobalChecks
+{
+    [UsedImplicitly]
+    Task CheckForFFmpeg();
+    [UsedImplicitly]
+    Task CheckForWhisper();
+    [UsedImplicitly]
+    Task CheckForMake();
+}
 
 public static class Globals
 {
@@ -31,6 +49,12 @@ public static class Globals
     public const string WhisperUrl = "https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip";
 
     #endregion
+
+    public static readonly JsonSerializerOptions? Options = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        WriteIndented = true
+    };
 
     /// <summary>
     /// CPU Thread Count
@@ -94,16 +118,25 @@ public static class Globals
     };
 }
 
-public static class GlobalDownloads
+public class GlobalDownloads : IGlobalDownloads
 {
-    public static async Task DownloadModels(WhisperModel whisperModel)
+
+    private readonly IHttpClientFactory _httpClient;
+
+    public GlobalDownloads(IHttpClientFactory httpClient)
+    {
+        _httpClient = httpClient;
+    }
+
+    public async Task DownloadModels(WhisperModel whisperModel)
     {
         var modelString = whisperModel.ToString().ToLower();
         // Source: https://huggingface.co/datasets/ggerganov/whisper.cpp/tree/main
         var modelUrl = $"https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-{modelString}.bin";
         var modelPath = Path.Combine(WhisperFolder, $"ggml-{modelString}.bin");
 
-        var download = await Globals.HttpClient.GetAsync(modelUrl).ContinueWith(async task =>
+        using var client = _httpClient.CreateClient();
+        var download = await client.GetAsync(modelUrl).ContinueWith(async task =>
         {
             using var response = await task;
             using var content = response.Content;
@@ -172,9 +205,9 @@ public static class GlobalDownloads
     }
 }
 
-public static class GlobalChecks
+public class GlobalChecks : IGlobalChecks
 {
-    public static async Task CheckForFFmpeg()
+    public async Task CheckForFFmpeg()
     {
         try
         {
@@ -191,7 +224,7 @@ public static class GlobalChecks
         }
     }
 
-    public static async Task CheckForWhisper()
+    public async Task CheckForWhisper()
     {
         try
         {
@@ -210,7 +243,7 @@ public static class GlobalChecks
     /// <summary>
     /// We're using Process because Cli.Wrap doesn't work with make for some odd reason
     /// </summary>
-    public static async Task CheckForMake()
+    public async Task CheckForMake()
     {
         using Process process = new()
         {
