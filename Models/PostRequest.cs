@@ -1,21 +1,18 @@
-using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace WhisperAPI.Models;
 
-public struct PostRequest
+public class PostRequest
 {
-    [JsonPropertyName("file")]
-    public string? File { get; set; }
+    [FromForm(Name = "time_stamps")]
+    public bool TimeStamps { get; set; }
 
-    [JsonPropertyName("time_stamps")]
-    public bool? TimeStamps { get; set; }
+    [FromForm(Name = "lang")]
+    public string Lang { get; set; } = "auto";
 
-    [JsonPropertyName("lang")]
-    public string? Lang { get; set; }
+    [FromForm(Name = "translate")]
+    public bool Translate { get; set; }
 
-    [JsonPropertyName("translate")]
-    public bool? Translate { get; set; }
-
-    [JsonPropertyName("model")]
-    public string? Model { get; set; }
+    [FromForm(Name = "model")]
+    public string Model { get; set; } = "base";
 }
