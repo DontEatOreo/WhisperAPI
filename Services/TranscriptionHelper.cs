@@ -9,14 +9,22 @@ namespace WhisperAPI.Services;
 
 public class TranscriptionHelper
 {
+    #region Constructor
+
     private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
+    private readonly Globals _globals;
     private readonly IGlobalDownloads _globalDownloads;
 
-    public TranscriptionHelper(AsyncKeyedLocker<string> asyncKeyedLocker, IGlobalDownloads globalDownloads)
+    public TranscriptionHelper(AsyncKeyedLocker<string> asyncKeyedLocker, IGlobalDownloads globalDownloads, Globals globals)
     {
         _asyncKeyedLocker = asyncKeyedLocker;
         _globalDownloads = globalDownloads;
+        _globals = globals;
     }
+
+    #endregion
+
+    #region Methods
 
     public async Task Transcribe(
         string audioFile,
@@ -40,7 +48,7 @@ public class TranscriptionHelper
         if (translate)
             whisperArgs.Add("-tr");
 
-        await Cli.Wrap(Globals.WhisperExecPath)
+        await Cli.Wrap(_globals.WhisperExecPath)
             .WithArguments(arg =>
             {
                 foreach (var whisperArg in whisperArgs)
@@ -50,7 +58,7 @@ public class TranscriptionHelper
             .ExecuteAsync();
     }
 
-    public async Task DownloadModelIfNotExists(Globals.WhisperModel whisperModel, string modelPath)
+    public async Task DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)
     {
         if (!File.Exists(modelPath))
         {
@@ -87,4 +95,6 @@ public class TranscriptionHelper
 
         return jsonLines;
     }
+
+    #endregion
 }
