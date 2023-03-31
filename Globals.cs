@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using CliWrap;
 using JetBrains.Annotations;
 using Serilog;
@@ -23,20 +21,23 @@ public interface IGlobalChecks
     Task CheckForMake();
 }
 
-public static class Globals
+public class Globals
 {
     #region Strings
 
     /// <summary>
-    /// This variable is responsible for where WhisperModels will be downloaded to and where the audio files will be stored.
+    /// Where will WhisperModels be downloaded to and where the audio files will be stored.
     /// </summary>
-    public static readonly string WhisperFolder = Environment.GetEnvironmentVariable("WHISPER_FOLDER")
+    public readonly string WhisperFolder = Environment.GetEnvironmentVariable("WHISPER_FOLDER")
                                                   ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WhisperAPI");
+
+    public readonly string AudioFilesFolder;
+
     /// <summary>
     /// This variable is responsible for where the Whisper executable is located.
     /// If null it will default to the WhisperFolder and look for "main" file
     /// </summary>
-    public static readonly string WhisperExecPath = Environment.GetEnvironmentVariable("WHISPER_EXEC_PATH") ?? Path.Combine(WhisperFolder, "main");
+    public readonly string WhisperExecPath;
 
     /// <summary>
     /// This is the key for AsyncKeyedLocker
@@ -50,82 +51,77 @@ public static class Globals
 
     #endregion
 
-    public static readonly JsonSerializerOptions? Options = new()
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        WriteIndented = true
-    };
-
     /// <summary>
     /// CPU Thread Count
     /// </summary>
     public static readonly int ThreadCount = Environment.ProcessorCount;
 
     /// <summary>
-    ///  A Global static instance of HttpClient
-    /// </summary>
-    public static readonly HttpClient HttpClient = new();
-
-    /// <summary>
-    /// Struct containing all error codes and messages
-    /// </summary>
-    public struct ErrorCodesAndMessages
-    {
-        public const string? NoFile = "NO_FILE";
-        public const string? NoFileMessage = "No file was provided in the request.";
-
-        public const string InvalidFileType = "INVALID_FILE_TYPE";
-        public const string InvalidFileTypeMessage = "The provided file is not a valid audio or video file.";
-
-        public const string InvalidModel = "INVALID_MODEL";
-        public static readonly string InvalidModelMessage = "The provided model is not a valid option. Valid options are: " + string.Join(", ", Enum.GetNames(typeof(WhisperModel)));
-
-        public const string FileSizeExceeded = "FILE_SIZE_EXCEEDED";
-        public const string FileSizeExceededMessage = "The provided file is too big. Max size is 30MB.";
-
-        public const string InvalidLanguage = "INVALID_LANG";
-        public const string InvalidLanguageMessage = "The provided language is not a valid option";
-    }
-
-    /// <summary>
-    /// Supported models for Whisper
-    /// </summary>
-    public enum WhisperModel
-    {
-        Tiny,
-        Base,
-        Small,
-        Medium,
-        Large
-    }
-
-    /// <summary>
     /// Path to WhisperModels
     /// </summary>
-    public static readonly Dictionary<WhisperModel, string> ModelFilePaths = new()
-    {
-        { WhisperModel.Tiny, Path.Combine(WhisperFolder, "ggml-tiny.bin") },
-        { WhisperModel.Base, Path.Combine(WhisperFolder, "ggml-base.bin") },
-        { WhisperModel.Small, Path.Combine(WhisperFolder, "ggml-small.bin") },
-        { WhisperModel.Medium, Path.Combine(WhisperFolder, "ggml-medium.bin") },
-        { WhisperModel.Large, Path.Combine(WhisperFolder, "ggml-large.bin") }
-    };
+    public readonly Dictionary<WhisperModel, string> ModelFilePaths;
 
-    public static readonly Dictionary<bool, string> OutputFormatMapping = new()
+    public readonly Dictionary<bool, string> OutputFormatMapping = new()
     {
         { true, "-ocsv" },
         { false, "-otxt" }
     };
+
+    public Globals()
+    {
+        AudioFilesFolder = Path.Combine(WhisperFolder, "AudioFiles");
+        ModelFilePaths = new Dictionary<WhisperModel, string>
+        {
+            { WhisperModel.Tiny, Path.Combine(WhisperFolder, "ggml-tiny.bin") },
+            { WhisperModel.Base, Path.Combine(WhisperFolder, "ggml-base.bin") },
+            { WhisperModel.Small, Path.Combine(WhisperFolder, "ggml-small.bin") },
+            { WhisperModel.Medium, Path.Combine(WhisperFolder, "ggml-medium.bin") },
+            { WhisperModel.Large, Path.Combine(WhisperFolder, "ggml-large.bin") }
+        };
+        WhisperExecPath = Environment.GetEnvironmentVariable("WHISPER_EXEC_PATH") ?? Path.Combine(WhisperFolder, "main");
+    }
+}
+
+/// <summary>
+/// Supported models for Whisper
+/// </summary>
+public enum WhisperModel
+{
+    Tiny,
+    Base,
+    Small,
+    Medium,
+    Large
+}
+
+/// <summary>
+/// Struct containing all error codes and messages
+/// </summary>
+public static class ErrorCodesAndMessages
+{
+    public const string? NoFile = "NO_FILE";
+    public const string? NoFileMessage = "No file was provided in the request.";
+
+    public const string InvalidFileType = "INVALID_FILE_TYPE";
+    public const string InvalidFileTypeMessage = "The provided file is not a valid audio or video file.";
+
+    public const string InvalidModel = "INVALID_MODEL";
+    public static readonly string InvalidModelMessage = "The provided model is not a valid option. Valid options are: " + string.Join(", ", Enum.GetNames(typeof(WhisperModel)));
+
+    public const string InvalidLanguage = "INVALID_LANG";
+    public const string InvalidLanguageMessage = "The provided language is not a valid option";
 }
 
 public class GlobalDownloads : IGlobalDownloads
 {
 
     private readonly IHttpClientFactory _httpClient;
+    private readonly Globals _globals;
 
-    public GlobalDownloads(IHttpClientFactory httpClient)
+    public GlobalDownloads(IHttpClientFactory httpClient, Globals globals)
     {
         _httpClient = httpClient;
+        _globals = globals;
     }
 
     public async Task DownloadModels(WhisperModel whisperModel)
@@ -133,21 +129,22 @@ public class GlobalDownloads : IGlobalDownloads
         var modelString = whisperModel.ToString().ToLower();
         // Source: https://huggingface.co/datasets/ggerganov/whisper.cpp/tree/main
         var modelUrl = $"https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-{modelString}.bin";
-        var modelPath = Path.Combine(WhisperFolder, $"ggml-{modelString}.bin");
+        var modelPath = Path.Combine(_globals.WhisperFolder, $"ggml-{modelString}.bin");
 
         using var client = _httpClient.CreateClient();
-        var download = await client.GetAsync(modelUrl).ContinueWith(async task =>
+        var download = await client.GetAsync(modelUrl);
+        if (!download.IsSuccessStatusCode)
         {
-            using var response = await task;
-            using var content = response.Content;
-            await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await content.CopyToAsync(fileStream);
-        });
-        if (!download.IsCompletedSuccessfully)
             Log.Error("Failed to download the model");
+            return;
+        }
+
+        using var content = download.Content;
+        await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await content.CopyToAsync(fileStream);
     }
 
-    public static async Task DownloadWhisper()
+    public async Task DownloadWhisper()
     {
         var fileName = Path.GetFileName(WhisperUrl);
 
@@ -158,13 +155,16 @@ public class GlobalDownloads : IGlobalDownloads
             Directory.Delete(unzipPath, true);
 
         Log.Information("Downloading Whisper...");
-        await Globals.HttpClient.GetAsync(WhisperUrl).ContinueWith(async task =>
+        var client = _httpClient.CreateClient();
+        var download = await client.GetAsync(WhisperUrl);
+        if (!download.IsSuccessStatusCode)
         {
-            using var response = await task;
-            using var content = response.Content;
-            await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await content.CopyToAsync(fileStream);
-        });
+            Log.Error("Failed to download Whisper");
+            return;
+        }
+        var content = download.Content;
+        await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await content.CopyToAsync(fileStream);
 
         Log.Information("Unzipping Whisper...");
         await Cli.Wrap("unzip")
@@ -193,13 +193,13 @@ public class GlobalDownloads : IGlobalDownloads
         await process.WaitForExitAsync();
         Log.Information("Finished compiling Whisper");
 
-        if (File.Exists(WhisperExecPath))
-            File.Delete(WhisperExecPath);
+        if (File.Exists(_globals.WhisperExecPath))
+            File.Delete(_globals.WhisperExecPath);
 
-        if (!Directory.Exists(WhisperFolder))
-            Directory.CreateDirectory(WhisperFolder);
+        if (!Directory.Exists(_globals.WhisperFolder))
+            Directory.CreateDirectory(_globals.WhisperFolder);
 
-        File.Move(Path.Combine(unzipPath, "main"), Path.Combine(WhisperFolder, "main"));
+        File.Move(Path.Combine(unzipPath, "main"), Path.Combine(_globals.WhisperFolder, "main"));
         File.Delete(zipPath);
         Directory.Delete(unzipPath, true);
     }
@@ -207,6 +207,21 @@ public class GlobalDownloads : IGlobalDownloads
 
 public class GlobalChecks : IGlobalChecks
 {
+    #region Consturctor
+
+    private readonly Globals _globals;
+    private readonly GlobalDownloads _globalDownloads;
+
+    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads)
+    {
+        _globals = globals;
+        _globalDownloads = globalDownloads;
+    }
+
+    #endregion
+
+    #region Methods
+
     public async Task CheckForFFmpeg()
     {
         try
@@ -228,7 +243,7 @@ public class GlobalChecks : IGlobalChecks
     {
         try
         {
-            await Cli.Wrap(WhisperExecPath)
+            await Cli.Wrap(_globals.WhisperExecPath)
                 .WithArguments("-h")
                 .WithValidation(CommandResultValidation.ZeroExitCode)
                 .ExecuteAsync();
@@ -236,7 +251,7 @@ public class GlobalChecks : IGlobalChecks
         catch (Exception)
         {
             Log.Information("Whisper is not installed");
-            await GlobalDownloads.DownloadWhisper();
+            await _globalDownloads.DownloadWhisper();
         }
     }
 
@@ -264,4 +279,6 @@ public class GlobalChecks : IGlobalChecks
             Environment.Exit(1);
         }
     }
+
+    #endregion
 }
