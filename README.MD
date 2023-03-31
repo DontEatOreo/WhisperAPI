@@ -38,30 +38,33 @@ If you need help with WhisperAPI, please create an issue on GitHub and I will re
 
 ## Usage
 
-To use WhisperAPI, you will need to send a POST request to the ``/transcribe`` endpoint with the following JSON payload:
+To use WhisperAPI, you will need to send a POST multipart/form-data to the ``/transcribe`` endpoint with the following JSON payload:
 ```json
 {
-    "file": "...base64 encoded file...",
     "lang": "en",
     "time_stamps": false,
-    "model": "base"
+    "model": "base",
+    "translate": true
 }
 ```
-`lang`, `time_stamps` and `model` are optional properties.
+And with the file as a multipart/form-data field named ``file``.
+
+`lang`, `time_stamps`, `translate` and `model` are optional properties.
 - If `lang` is omitted, it will automatically detect the language of the file.
 - If `time_stamps` is omitted, it will default to false.
+- If `translate` is omitted, it will default to false.
 - If `model` is omitted, it will default to base.
 
 Here is a curl example of the request:
 ```bash
-curl --location --request POST 'https://localhost:7272/transcribe' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "file": “...base64 encoded file...”,
-    "lang": "en",
-    "time_stamps": false,
-    "model": "base"
-}'
+curl -X POST \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@/path/to/file.mp3" \
+  -F "lang=en" \
+  -F 'time_stamps=false' \
+  -F "model=base" \
+  -F "translate=true" \
+  https://localhost:5001/transcribe
 ```
 
 The response will be a JSON payload with the following format:
