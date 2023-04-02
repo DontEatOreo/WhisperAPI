@@ -1,11 +1,11 @@
-using CliWrap;
-using CsvHelper;
 using System.Globalization;
 using AsyncKeyedLock;
+using CliWrap;
+using CsvHelper;
 using Serilog;
 using WhisperAPI.Models;
 
-namespace WhisperAPI.Services;
+namespace WhisperAPI.Services.Transcription;
 
 public class TranscriptionHelper
 {
@@ -24,6 +24,8 @@ public class TranscriptionHelper
 
     #endregion
 
+    private const string DownloadKey = "download";
+
     #region Methods
 
     public async Task Transcribe(
@@ -31,7 +33,8 @@ public class TranscriptionHelper
         string lang,
         bool translate,
         string modelPath,
-        string outputFormat)
+        string outputFormat,
+        CancellationToken token)
     {
         List<string> whisperArgs = new()
         {
@@ -48,18 +51,26 @@ public class TranscriptionHelper
         if (translate)
             whisperArgs.Add("-tr");
 
-        await Cli.Wrap(_globals.WhisperExecPath)
-            .WithArguments(arg =>
-            {
-                foreach (var whisperArg in whisperArgs)
-                    arg.Add(whisperArg);
-            })
-            .WithValidation(CommandResultValidation.ZeroExitCode)
-            .ExecuteAsync();
+        try
+        {
+            await Cli.Wrap(_globals.WhisperExecPath)
+                .WithArguments(arg =>
+                {
+                    foreach (var whisperArg in whisperArgs)
+                        arg.Add(whisperArg);
+                })
+                .WithValidation(CommandResultValidation.ZeroExitCode)
+                .ExecuteAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            // ignored
+        }
     }
 
     public async Task DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)
     {
+        await _asyncKeyedLocker.LockAsync(DownloadKey).ConfigureAwait(false);
         if (!File.Exists(modelPath))
         {
             Log.Information("Model {WhisperModel} doesn't exist, downloading...", whisperModel);
