@@ -1,6 +1,7 @@
 using System.Net;
 using AsyncKeyedLock;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.StaticFiles;
 using Serilog;
 using WhisperAPI;
@@ -12,9 +13,9 @@ var builder = WebApplication.CreateBuilder();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpClient();
-builder.Services.Configure<FormOptions>(options =>
+builder.Services.Configure<KestrelServerOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 83988480; // 80 Mib + 100 kib
+    options.Limits.MaxRequestBodySize = 209715200;
 });
 
 #region Singletons
