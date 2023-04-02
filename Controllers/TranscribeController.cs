@@ -2,7 +2,7 @@ using AsyncKeyedLock;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Models;
-using WhisperAPI.Services;
+using WhisperAPI.Services.Transcription;
 using static WhisperAPI.Globals;
 
 namespace WhisperAPI.Controllers;
@@ -36,6 +36,9 @@ public sealed class Transcribe : ControllerBase
             return BadRequest(_transcriptionService.FailResponse(ErrorCodesAndMessages.NoFile,
                 ErrorCodesAndMessages.NoFileMessage));
 
+        // Create a linked CancellationTokenSource
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
+
         // Get file extension
         var fileExtension = _provider.TryGetContentType(file.FileName, out var contentType)
             ? contentType
@@ -46,9 +49,15 @@ public sealed class Transcribe : ControllerBase
             return BadRequest(_transcriptionService.FailResponse(ErrorCodesAndMessages.InvalidFileType,
                 ErrorCodesAndMessages.InvalidFileTypeMessage));
 
-        // Queue the transcription request
-        using var loc = await _asyncKeyedLocker.LockAsync(Key).ConfigureAwait(false);
-        var response = await _transcriptionService.HandleTranscriptionRequest(file, request);
-        return response.Success ? Ok(response) : BadRequest(response);
+        using var loc = await _asyncKeyedLocker.LockAsync(Key, cts.Token).ConfigureAwait(false);
+        try
+        {
+            var response = await _transcriptionService.HandleTranscriptionRequest(file, request, cts.Token);
+            return response.Success ? Ok(response) : BadRequest(response);
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(499); // 499 Client Closed Request
+        }
     }
 }
