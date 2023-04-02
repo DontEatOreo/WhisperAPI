@@ -29,20 +29,57 @@ public class TranscriptionService : ITranscriptionService
     public async Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request)
     {
         var lang = request.Lang.Trim().ToLower();
-        if (lang != "auto")
-        {
-            if (lang.Length is 2)
-                lang = CultureInfo.GetCultures(CultureTypes.AllCultures)
-                    .FirstOrDefault(c => c.TwoLetterISOLanguageName == lang)?.EnglishName;
+        // if (lang != "auto")
+        // {
+        //     if (lang.Length is 2)
+        //     {
+        //         lang = CultureInfo.GetCultures(CultureTypes.AllCultures)
+        //             .FirstOrDefault(c => c.TwoLetterISOLanguageName == lang)?.EnglishName;
+        //     }
+        //
+        //     if (CultureInfo.GetCultures(CultureTypes.AllCultures).All(c => !lang!.Contains(c.EnglishName)
+        //                                                                    || !lang.Contains(c.NativeName)))
+        //     {
+        //         Log.Warning("Invalid language: {Lang}", lang);
+        //         return FailResponse(ErrorCodesAndMessages.InvalidLanguage,
+        //             ErrorCodesAndMessages.InvalidLanguageMessage);
+        //     }
+        //
+        //     lang = new CultureInfo(lang!).TwoLetterISOLanguageName;
+        // }
 
-            if (CultureInfo.GetCultures(CultureTypes.AllCultures).All(c => !lang!.Contains(c.EnglishName)))
+        if (lang is not "auto")
+        {
+            var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
+            if (lang.Length is 2)
+            {
+                foreach (var culture in cultures)
+                {
+                    if (culture.TwoLetterISOLanguageName != lang)
+                        continue;
+
+                    lang = culture.EnglishName;
+                    break;
+                }
+            }
+
+            foreach (var culture in cultures)
+            {
+                if (!lang.Contains(culture.NativeName))
+                    continue;
+
+                lang = culture.EnglishName;
+                break;
+            }
+
+            if (cultures.All(c => !lang.Contains(c.EnglishName) || !lang.Contains(c.NativeName)))
             {
                 Log.Warning("Invalid language: {Lang}", lang);
                 return FailResponse(ErrorCodesAndMessages.InvalidLanguage,
                     ErrorCodesAndMessages.InvalidLanguageMessage);
             }
 
-            lang = new CultureInfo(lang!).TwoLetterISOLanguageName;
+            lang = new CultureInfo(lang).TwoLetterISOLanguageName;
         }
 
         if (!Enum.TryParse(request.Model, true, out WhisperModel modelEnum))
