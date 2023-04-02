@@ -2,8 +2,9 @@ using System.Globalization;
 using System.Text.Json;
 using Serilog;
 using WhisperAPI.Models;
+using WhisperAPI.Services.Audio;
 
-namespace WhisperAPI.Services;
+namespace WhisperAPI.Services.Transcription;
 
 public class TranscriptionService : ITranscriptionService
 {
@@ -26,28 +27,9 @@ public class TranscriptionService : ITranscriptionService
 
     #region Methods
 
-    public async Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request)
+    public async Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request, CancellationToken token)
     {
         var lang = request.Lang.Trim().ToLower();
-        // if (lang != "auto")
-        // {
-        //     if (lang.Length is 2)
-        //     {
-        //         lang = CultureInfo.GetCultures(CultureTypes.AllCultures)
-        //             .FirstOrDefault(c => c.TwoLetterISOLanguageName == lang)?.EnglishName;
-        //     }
-        //
-        //     if (CultureInfo.GetCultures(CultureTypes.AllCultures).All(c => !lang!.Contains(c.EnglishName)
-        //                                                                    || !lang.Contains(c.NativeName)))
-        //     {
-        //         Log.Warning("Invalid language: {Lang}", lang);
-        //         return FailResponse(ErrorCodesAndMessages.InvalidLanguage,
-        //             ErrorCodesAndMessages.InvalidLanguageMessage);
-        //     }
-        //
-        //     lang = new CultureInfo(lang!).TwoLetterISOLanguageName;
-        // }
-
         if (lang is not "auto")
         {
             var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
@@ -98,7 +80,7 @@ public class TranscriptionService : ITranscriptionService
         var filePath = Path.Combine(_globals.AudioFilesFolder, $"{fileId}{fileExt}");
         var wavFilePath = Path.Combine(_globals.AudioFilesFolder, $"{fileId}.wav");
         await using FileStream fs = new(filePath, FileMode.Create);
-        await file.CopyToAsync(fs).ConfigureAwait(false);
+        await file.CopyToAsync(fs, token).ConfigureAwait(false);
 
         var result = await ProcessAudioTranscription(
             filePath,
@@ -106,7 +88,8 @@ public class TranscriptionService : ITranscriptionService
             lang,
             request.Translate,
             modelEnum,
-            request.TimeStamps);
+            request.TimeStamps,
+            token);
 
         if (result.transcription is not null)
             return new PostResponse
@@ -117,7 +100,6 @@ public class TranscriptionService : ITranscriptionService
                     : result.transcription
             };
 
-        Log.Warning("Transcription failed: {ErrorCode} - {ErrorMessage}", result.errorCode, result.errorMessage);
         return FailResponse(result.errorCode, result.errorMessage);
     }
 
@@ -127,33 +109,52 @@ public class TranscriptionService : ITranscriptionService
         string lang,
         bool translate,
         WhisperModel whisperModel,
-        bool timeStamp)
+        bool timeStamp,
+        CancellationToken token)
     {
         var selectedModelPath = _globals.ModelFilePaths[whisperModel];
         var selectedOutputFormat = _globals.OutputFormatMapping[timeStamp];
 
         await _transcriptionHelper.DownloadModelIfNotExists(whisperModel, selectedModelPath);
-        await _audioConversionService.ConvertToWavAsync(fileName, wavFile);
 
-        // The CLI Arguments in Whisper.cpp for the output file format are `-o<extension>` so we just parse the extension after the `-o`
         var transcribedFilePath = Path.Combine(_globals.AudioFilesFolder, $"{wavFile}.{selectedOutputFormat[2..]}");
-        await _transcriptionHelper.Transcribe(wavFile, lang, translate, selectedModelPath, selectedOutputFormat);
-
-        string[] filesToDelete = { fileName, wavFile, transcribedFilePath };
-
-        if (timeStamp)
+        try
         {
-            var jsonLines = _transcriptionHelper.ConvertToJson(transcribedFilePath);
-            foreach (var file in filesToDelete)
-                File.Delete(file);
-            var serialized = JsonSerializer.Serialize(jsonLines).Trim();
-            return (serialized, null, null);
+            await _audioConversionService.ConvertToWavAsync(fileName, wavFile);
+
+            token.ThrowIfCancellationRequested();
+
+            await _transcriptionHelper.Transcribe(wavFile, lang, translate, selectedModelPath, selectedOutputFormat,
+                token);
+
+            token.ThrowIfCancellationRequested();
+
+            if (timeStamp)
+            {
+                var jsonLines = _transcriptionHelper.ConvertToJson(transcribedFilePath);
+                var serialized = JsonSerializer.Serialize(jsonLines).Trim();
+                return (serialized, null, null);
+            }
+
+            var transcribedText = await File.ReadAllTextAsync(transcribedFilePath, token);
+            return (transcribedText.Trim(), null, null);
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warning("Transcription cancelled");
+        }
+        finally
+        {
+            DeleteFilesAsync(fileName, wavFile, transcribedFilePath);
         }
 
-        var transcribedText = await File.ReadAllTextAsync(transcribedFilePath);
-        foreach (var file in filesToDelete)
-            File.Delete(file);
-        return (transcribedText.Trim(), null, null);
+        return default;
+    }
+    private static void DeleteFilesAsync(params string[] files)
+    {
+        foreach (var file in files)
+            if (File.Exists(file))
+                File.Delete(file);
     }
 
     public PostResponse FailResponse(string? errorCode, string? errorMessage)
