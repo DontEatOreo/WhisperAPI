@@ -15,8 +15,10 @@ public interface IGlobalChecks
 {
     [UsedImplicitly]
     Task CheckForFFmpeg();
+
     [UsedImplicitly]
     Task CheckForWhisper();
+
     [UsedImplicitly]
     Task CheckForMake();
 }
@@ -114,6 +116,7 @@ public static class ErrorCodesAndMessages
 
 public class GlobalDownloads : IGlobalDownloads
 {
+    #region Constructors
 
     private readonly IHttpClientFactory _httpClient;
     private readonly Globals _globals;
@@ -124,6 +127,10 @@ public class GlobalDownloads : IGlobalDownloads
         _globals = globals;
     }
 
+    #endregion
+
+    #region Methods
+
     public async Task DownloadModels(WhisperModel whisperModel)
     {
         var modelString = whisperModel.ToString().ToLower();
@@ -132,16 +139,9 @@ public class GlobalDownloads : IGlobalDownloads
         var modelPath = Path.Combine(_globals.WhisperFolder, $"ggml-{modelString}.bin");
 
         using var client = _httpClient.CreateClient();
-        var download = await client.GetAsync(modelUrl);
-        if (!download.IsSuccessStatusCode)
-        {
-            Log.Error("Failed to download the model");
-            return;
-        }
-
-        using var content = download.Content;
+        var download = await client.GetStreamAsync(modelUrl);
         await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await content.CopyToAsync(fileStream);
+        await download.CopyToAsync(fileStream);
     }
 
     public async Task DownloadWhisper()
@@ -156,15 +156,9 @@ public class GlobalDownloads : IGlobalDownloads
 
         Log.Information("Downloading Whisper...");
         var client = _httpClient.CreateClient();
-        var download = await client.GetAsync(WhisperUrl);
-        if (!download.IsSuccessStatusCode)
-        {
-            Log.Error("Failed to download Whisper");
-            return;
-        }
-        var content = download.Content;
+        var download = await client.GetStreamAsync(WhisperUrl);
         await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await content.CopyToAsync(fileStream);
+        await download.CopyToAsync(fileStream);
 
         Log.Information("Unzipping Whisper...");
         await Cli.Wrap("unzip")
@@ -203,6 +197,8 @@ public class GlobalDownloads : IGlobalDownloads
         File.Delete(zipPath);
         Directory.Delete(unzipPath, true);
     }
+
+    #endregion
 }
 
 public class GlobalChecks : IGlobalChecks
