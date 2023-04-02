@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.StaticFiles;
 using Serilog;
 using WhisperAPI;
-using WhisperAPI.Services;
+using WhisperAPI.Services.Audio;
+using WhisperAPI.Services.Transcription;
 
 var builder = WebApplication.CreateBuilder();
 

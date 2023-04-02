@@ -1,7 +1,7 @@
 using CliWrap;
 using Serilog;
 
-namespace WhisperAPI.Services;
+namespace WhisperAPI.Services.Audio;
 
 public class AudioConversionService : IAudioConversionService
 {

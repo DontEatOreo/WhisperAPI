@@ -1,4 +1,4 @@
-namespace WhisperAPI.Services;
+namespace WhisperAPI.Services.Audio;
 
 public interface IAudioConversionService
 {
