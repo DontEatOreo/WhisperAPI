@@ -66,6 +66,10 @@ public class TranscriptionHelper
         {
             // ignored
         }
+        catch (Exception)
+        {
+            Log.Error("Whisper failed to transcribe {AudioFile}", audioFile);
+        }
     }
 
     public async Task DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)

@@ -91,19 +91,20 @@ public class TranscriptionService : ITranscriptionService
             request.TimeStamps,
             token);
 
-        if (result.transcription is not null)
+        if (result is not null)
             return new PostResponse
             {
                 Success = true,
                 Result = request.TimeStamps
-                    ? JsonSerializer.Deserialize<List<TimeStamp>>(result.transcription)
-                    : result.transcription
+                    ? JsonSerializer.Deserialize<List<TimeStamp>>(result)
+                    : result
             };
 
-        return FailResponse(result.errorCode, result.errorMessage);
+        // return FailResponse(result.errorCode, result.errorMessage);
+        throw new Exception();
     }
 
-    public async Task<(string? transcription, string? errorCode, string? errorMessage)> ProcessAudioTranscription(
+    public async Task<string?> ProcessAudioTranscription(
         string fileName,
         string wavFile,
         string lang,
@@ -133,11 +134,11 @@ public class TranscriptionService : ITranscriptionService
             {
                 var jsonLines = _transcriptionHelper.ConvertToJson(transcribedFilePath);
                 var serialized = JsonSerializer.Serialize(jsonLines).Trim();
-                return (serialized, null, null);
+                return serialized;
             }
 
             var transcribedText = await File.ReadAllTextAsync(transcribedFilePath, token);
-            return (transcribedText.Trim(), null, null);
+            return transcribedText.Trim();
         }
         catch (OperationCanceledException)
         {
@@ -155,16 +156,6 @@ public class TranscriptionService : ITranscriptionService
         foreach (var file in files)
             if (File.Exists(file))
                 File.Delete(file);
-    }
-
-    public PostResponse FailResponse(string? errorCode, string? errorMessage)
-    {
-        return new PostResponse
-        {
-            Success = false,
-            ErrorCode = errorCode,
-            ErrorMessage = errorMessage
-        };
     }
 
     #endregion

@@ -100,18 +100,18 @@ public class GlobalDownloads : IGlobalDownloads
 {
     #region Constructors
 
-    private readonly IHttpClientFactory _httpClient;
     private readonly Globals _globals;
-
-    public GlobalDownloads(IHttpClientFactory httpClient, Globals globals)
-    {
-        _httpClient = httpClient;
-        _globals = globals;
-    }
+    private readonly IHttpClientFactory _httpClient;
 
     #endregion
 
     #region Methods
+
+    public GlobalDownloads(Globals globals, IHttpClientFactory httpClient)
+    {
+        _globals = globals;
+        _httpClient = httpClient;
+    }
 
     public async Task DownloadModels(WhisperModel whisperModel)
     {
@@ -120,10 +120,14 @@ public class GlobalDownloads : IGlobalDownloads
         var modelUrl = $"https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-{modelString}.bin";
         var modelPath = Path.Combine(_globals.WhisperFolder, $"ggml-{modelString}.bin");
 
-        using var client = _httpClient.CreateClient();
-        var download = await client.GetStreamAsync(modelUrl);
+        using var httpClient = _httpClient.CreateClient();
+        using var response = await httpClient.GetAsync(modelUrl);
+        var redirectUrl = response.RequestMessage?.RequestUri;
+        var model = await httpClient.GetByteArrayAsync(redirectUrl);
         await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await download.CopyToAsync(fileStream);
+        await fileStream.WriteAsync(model);
+
+        Log.Information("Downloaded {WhisperModel} model", whisperModel);
     }
 
     public async Task DownloadWhisper()
@@ -137,10 +141,12 @@ public class GlobalDownloads : IGlobalDownloads
             Directory.Delete(unzipPath, true);
 
         Log.Information("Downloading Whisper...");
-        var client = _httpClient.CreateClient();
-        var download = await client.GetStreamAsync(WhisperUrl);
+        using var client = _httpClient.CreateClient();
+        using var response = await client.GetAsync(WhisperUrl);
+        var redirectUrl = response.RequestMessage?.RequestUri;
+        var whisper = await client.GetByteArrayAsync(redirectUrl);
         await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await download.CopyToAsync(fileStream);
+        await fileStream.WriteAsync(whisper);
 
         Log.Information("Unzipping Whisper...");
         await Cli.Wrap("unzip")
@@ -149,7 +155,7 @@ public class GlobalDownloads : IGlobalDownloads
                 arg.Add(zipPath);
             })
             .WithWorkingDirectory(tempPath)
-            .WithValidation(CommandResultValidation.None)
+            .WithValidation(CommandResultValidation.ZeroExitCode)
             .ExecuteAsync();
 
         // For some reason using Cli.Wrap it's not possible to compile Whisper
