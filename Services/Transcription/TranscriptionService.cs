@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Serilog;
+using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Services.Audio;
 
@@ -57,8 +58,7 @@ public class TranscriptionService : ITranscriptionService
             if (cultures.All(c => !lang.Contains(c.EnglishName) || !lang.Contains(c.NativeName)))
             {
                 Log.Warning("Invalid language: {Lang}", lang);
-                return FailResponse(ErrorCodesAndMessages.InvalidLanguage,
-                    ErrorCodesAndMessages.InvalidLanguageMessage);
+                throw new InvalidLanguageException("Invalid language");
             }
 
             lang = new CultureInfo(lang).TwoLetterISOLanguageName;
@@ -67,7 +67,7 @@ public class TranscriptionService : ITranscriptionService
         if (!Enum.TryParse(request.Model, true, out WhisperModel modelEnum))
         {
             Log.Warning("Invalid model: {Model}", request.Model);
-            return FailResponse(ErrorCodesAndMessages.InvalidModel, ErrorCodesAndMessages.InvalidModelMessage);
+            throw new InvalidModelException("Invalid model");
         }
 
         // Check if the audio files folder exists, if not create it

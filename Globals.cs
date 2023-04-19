@@ -96,24 +96,6 @@ public enum WhisperModel
     Large
 }
 
-/// <summary>
-/// Struct containing all error codes and messages
-/// </summary>
-public static class ErrorCodesAndMessages
-{
-    public const string? NoFile = "NO_FILE";
-    public const string? NoFileMessage = "No file was provided in the request.";
-
-    public const string InvalidFileType = "INVALID_FILE_TYPE";
-    public const string InvalidFileTypeMessage = "The provided file is not a valid audio or video file.";
-
-    public const string InvalidModel = "INVALID_MODEL";
-    public static readonly string InvalidModelMessage = "The provided model is not a valid option. Valid options are: " + string.Join(", ", Enum.GetNames(typeof(WhisperModel)));
-
-    public const string InvalidLanguage = "INVALID_LANG";
-    public const string InvalidLanguageMessage = "The provided language is not a valid option";
-}
-
 public class GlobalDownloads : IGlobalDownloads
 {
     #region Constructors

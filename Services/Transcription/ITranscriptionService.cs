@@ -16,6 +16,4 @@ public interface ITranscriptionService
         WhisperModel whisperModel,
         bool timeStamp,
         CancellationToken token);
-
-    PostResponse FailResponse(string? errorCode, string? errorMessage);
 }

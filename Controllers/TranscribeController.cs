@@ -1,6 +1,7 @@
 using AsyncKeyedLock;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
+using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Services.Transcription;
 using static WhisperAPI.Globals;
@@ -31,10 +32,9 @@ public sealed class Transcribe : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Post([FromForm] PostRequest request, [FromForm] IFormFile? file)
     {
-        // Return if no file is provided
+        // Return   if no file is provided
         if (file is null || file.Length is 0)
-            return BadRequest(_transcriptionService.FailResponse(ErrorCodesAndMessages.NoFile,
-                ErrorCodesAndMessages.NoFileMessage));
+            throw new NoFileException("No file provided");
 
         // Create a linked CancellationTokenSource
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
@@ -46,8 +46,7 @@ public sealed class Transcribe : ControllerBase
 
         // Return if file is not audio or video
         if (!fileExtension.StartsWith("audio/") && !fileExtension.StartsWith("video/"))
-            return BadRequest(_transcriptionService.FailResponse(ErrorCodesAndMessages.InvalidFileType,
-                ErrorCodesAndMessages.InvalidFileTypeMessage));
+            throw new InvalidFileTypeException("File is not audio or video");
 
         using var loc = await _asyncKeyedLocker.LockAsync(Key, cts.Token).ConfigureAwait(false);
         try

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.StaticFiles;
 using Serilog;
 using WhisperAPI;
+using WhisperAPI.Exceptions;
 using WhisperAPI.Services.Audio;
 using WhisperAPI.Services.Transcription;
 
@@ -79,4 +80,5 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.UseMiddleware<Middleware>();
 app.Run();
