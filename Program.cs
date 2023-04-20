@@ -1,6 +1,5 @@
 using System.Net;
 using AsyncKeyedLock;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.StaticFiles;
 using Serilog;
@@ -25,12 +24,12 @@ builder.Services.AddSingleton<AsyncKeyedLocker<string>>(_ =>
 {
     return new AsyncKeyedLocker<string>(o =>
     {
-        o.PoolSize = Globals.ThreadCount * 4;
+        o.PoolSize = Environment.ProcessorCount * 4;
         o.PoolInitialFill = o.PoolSize / 2;
         // We determine the number of threads available to the CPU,
         // then divide it by two to calculate the maximum number of Whisper instances that can run simultaneously.
         // This ensures each instance has a minimum of two threads to work with, unless the CPU only possesses a single thread.
-        o.MaxCount = Globals.ThreadCount > 1 ? Globals.ThreadCount / 2 : 1;
+        o.MaxCount = Environment.ProcessorCount > 1 ? Environment.ProcessorCount / 2 : 1;
     });
 });
 builder.Services.AddSingleton<FileExtensionContentTypeProvider>();
@@ -64,7 +63,8 @@ var app = builder.Build();
 
 var globalService = app.Services.GetRequiredService<Globals>();
 var globalDownloadService = app.Services.GetRequiredService<GlobalDownloads>();
-GlobalChecks globalChecks = new(globalService, globalDownloadService);
+var logger = app.Services.GetRequiredService<Serilog.ILogger>();
+GlobalChecks globalChecks = new(globalService, globalDownloadService, logger);
 await globalChecks.CheckForFFmpeg();
 await globalChecks.CheckForWhisper();
 await globalChecks.CheckForMake();

@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using CliWrap;
 using JetBrains.Annotations;
-using Serilog;
 using static WhisperAPI.Globals;
+using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI;
 
@@ -44,7 +44,7 @@ public class Globals
     /// <summary>
     /// This is the key for AsyncKeyedLocker
     /// </summary>
-    public const string Key = "GlobalKey";
+    public readonly string Key = "GlobalKey";
 
     /// <summary>
     /// This is the URL for the Whisper source code
@@ -52,11 +52,6 @@ public class Globals
     public const string WhisperUrl = "https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip";
 
     #endregion
-
-    /// <summary>
-    /// CPU Thread Count
-    /// </summary>
-    public static readonly int ThreadCount = Environment.ProcessorCount;
 
     /// <summary>
     /// Path to WhisperModels
@@ -102,15 +97,17 @@ public class GlobalDownloads : IGlobalDownloads
 
     private readonly Globals _globals;
     private readonly IHttpClientFactory _httpClient;
+    private readonly ILogger _logger;
 
     #endregion
 
     #region Methods
 
-    public GlobalDownloads(Globals globals, IHttpClientFactory httpClient)
+    public GlobalDownloads(Globals globals, IHttpClientFactory httpClient, ILogger logger)
     {
         _globals = globals;
         _httpClient = httpClient;
+        _logger = logger;
     }
 
     public async Task DownloadModels(WhisperModel whisperModel)
@@ -127,7 +124,7 @@ public class GlobalDownloads : IGlobalDownloads
         await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
         await fileStream.WriteAsync(model);
 
-        Log.Information("Downloaded {WhisperModel} model", whisperModel);
+        _logger.Information("Downloaded {WhisperModel} model", whisperModel);
     }
 
     public async Task DownloadWhisper()
@@ -140,7 +137,7 @@ public class GlobalDownloads : IGlobalDownloads
         if (Directory.Exists(unzipPath))
             Directory.Delete(unzipPath, true);
 
-        Log.Information("Downloading Whisper...");
+        _logger.Information("Downloading Whisper...");
         using var client = _httpClient.CreateClient();
         using var response = await client.GetAsync(WhisperUrl);
         var redirectUrl = response.RequestMessage?.RequestUri;
@@ -148,7 +145,7 @@ public class GlobalDownloads : IGlobalDownloads
         await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
         await fileStream.WriteAsync(whisper);
 
-        Log.Information("Unzipping Whisper...");
+        _logger.Information("Unzipping Whisper...");
         await Cli.Wrap("unzip")
             .WithArguments(arg =>
             {
@@ -159,7 +156,7 @@ public class GlobalDownloads : IGlobalDownloads
             .ExecuteAsync();
 
         // For some reason using Cli.Wrap it's not possible to compile Whisper
-        Log.Information("Compiling Whisper...");
+        _logger.Information("Compiling Whisper...");
         using Process process = new()
         {
             StartInfo = new ProcessStartInfo
@@ -173,7 +170,7 @@ public class GlobalDownloads : IGlobalDownloads
         };
         process.Start();
         await process.WaitForExitAsync();
-        Log.Information("Finished compiling Whisper");
+        _logger.Information("Finished compiling Whisper");
 
         if (File.Exists(_globals.WhisperExecPath))
             File.Delete(_globals.WhisperExecPath);
@@ -195,11 +192,13 @@ public class GlobalChecks : IGlobalChecks
 
     private readonly Globals _globals;
     private readonly GlobalDownloads _globalDownloads;
+    private readonly ILogger _logger;
 
-    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads)
+    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads, ILogger logger)
     {
         _globals = globals;
         _globalDownloads = globalDownloads;
+        _logger = logger;
     }
 
     #endregion
@@ -218,7 +217,7 @@ public class GlobalChecks : IGlobalChecks
         catch (Exception)
         {
             await Console.Error.WriteLineAsync("FFmpeg is not installed");
-            Log.Error("FFmpeg is not installed");
+            _logger.Error("FFmpeg is not installed");
             Environment.Exit(1);
         }
     }
@@ -234,7 +233,7 @@ public class GlobalChecks : IGlobalChecks
         }
         catch (Exception)
         {
-            Log.Information("Whisper is not installed");
+            _logger.Information("Whisper is not installed");
             await _globalDownloads.DownloadWhisper();
         }
     }
@@ -259,7 +258,7 @@ public class GlobalChecks : IGlobalChecks
         await process.WaitForExitAsync();
         if (process.ExitCode != 0)
         {
-            Log.Error("Make is not installed");
+            _logger.Error("Make is not installed");
             Environment.Exit(1);
         }
     }

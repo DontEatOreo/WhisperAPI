@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
-using Serilog;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Services.Audio;
+using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI.Services.Transcription;
 
@@ -11,22 +11,25 @@ public class TranscriptionService : ITranscriptionService
 {
     #region Constructor
 
-    private readonly IAudioConversionService _audioConversionService;
-    private readonly TranscriptionHelper _transcriptionHelper;
     private readonly Globals _globals;
-
-    public TranscriptionService(Globals globals,
-        IAudioConversionService audioConversionService,
-        TranscriptionHelper transcriptionHelper)
-    {
-        _globals = globals;
-        _audioConversionService = audioConversionService;
-        _transcriptionHelper = transcriptionHelper;
-    }
+    private readonly TranscriptionHelper _transcriptionHelper;
+    private readonly IAudioConversionService _audioConversionService;
+    private readonly ILogger _logger;
 
     #endregion
 
     #region Methods
+
+    public TranscriptionService(Globals globals,
+        TranscriptionHelper transcriptionHelper,
+        IAudioConversionService audioConversionService,
+        ILogger logger)
+    {
+        _globals = globals;
+        _transcriptionHelper = transcriptionHelper;
+        _audioConversionService = audioConversionService;
+        _logger = logger;
+    }
 
     public async Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request, CancellationToken token)
     {
@@ -57,7 +60,7 @@ public class TranscriptionService : ITranscriptionService
 
             if (cultures.All(c => !lang.Contains(c.EnglishName) || !lang.Contains(c.NativeName)))
             {
-                Log.Warning("Invalid language: {Lang}", lang);
+                _logger.Warning("Invalid language: {Lang}", lang);
                 throw new InvalidLanguageException("Invalid language");
             }
 
@@ -66,7 +69,7 @@ public class TranscriptionService : ITranscriptionService
 
         if (!Enum.TryParse(request.Model, true, out WhisperModel modelEnum))
         {
-            Log.Warning("Invalid model: {Model}", request.Model);
+            _logger.Warning("Invalid model: {Model}", request.Model);
             throw new InvalidModelException("Invalid model");
         }
 
@@ -91,20 +94,16 @@ public class TranscriptionService : ITranscriptionService
             request.TimeStamps,
             token);
 
-        if (result is not null)
-            return new PostResponse
-            {
-                Success = true,
-                Result = request.TimeStamps
-                    ? JsonSerializer.Deserialize<List<TimeStamp>>(result)
-                    : result
-            };
-
-        // return FailResponse(result.errorCode, result.errorMessage);
-        throw new Exception();
+        return new PostResponse
+        {
+            Success = true,
+            Result = request.TimeStamps
+                ? JsonSerializer.Deserialize<List<TimeStamp>>(result)
+                : result
+        };
     }
 
-    public async Task<string?> ProcessAudioTranscription(
+    public async Task<string> ProcessAudioTranscription(
         string fileName,
         string wavFile,
         string lang,
@@ -142,20 +141,18 @@ public class TranscriptionService : ITranscriptionService
         }
         catch (OperationCanceledException)
         {
-            Log.Warning("Transcription cancelled");
+            _logger.Warning("Transcription cancelled");
         }
         finally
         {
             DeleteFilesAsync(fileName, wavFile, transcribedFilePath);
         }
 
-        return default;
+        throw new FileProcessingException("File processing failed");
     }
     private static void DeleteFilesAsync(params string[] files)
     {
-        foreach (var file in files)
-            if (File.Exists(file))
-                File.Delete(file);
+        foreach (var file in files.Where(File.Exists)) File.Delete(file);
     }
 
     #endregion

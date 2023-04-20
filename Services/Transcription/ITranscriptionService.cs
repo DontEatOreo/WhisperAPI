@@ -9,7 +9,7 @@ public interface ITranscriptionService
         CancellationToken token);
 
     [UsedImplicitly]
-    Task<string?> ProcessAudioTranscription(string fileName,
+    Task<string> ProcessAudioTranscription(string fileName,
         string wavFile,
         string lang,
         bool translate,

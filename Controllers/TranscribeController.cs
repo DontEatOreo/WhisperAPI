@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Services.Transcription;
-using static WhisperAPI.Globals;
 
 namespace WhisperAPI.Controllers;
 
@@ -14,25 +13,28 @@ public sealed class Transcribe : ControllerBase
 {
     #region Constructor
 
+    private readonly Globals _globals;
+    private readonly FileExtensionContentTypeProvider _provider;
     private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
     private readonly ITranscriptionService _transcriptionService;
-    private readonly FileExtensionContentTypeProvider _provider;
-
-    public Transcribe(AsyncKeyedLocker<string> asyncKeyedLocker,
-        ITranscriptionService transcriptionService,
-        FileExtensionContentTypeProvider provider)
-    {
-        _asyncKeyedLocker = asyncKeyedLocker;
-        _transcriptionService = transcriptionService;
-        _provider = provider;
-    }
 
     #endregion
 
-    [HttpPost]
-    public async Task<IActionResult> Post([FromForm] PostRequest request, [FromForm] IFormFile? file)
+    public Transcribe(Globals globals,
+        FileExtensionContentTypeProvider provider,
+        AsyncKeyedLocker<string> asyncKeyedLocker,
+        ITranscriptionService transcriptionService)
     {
-        // Return   if no file is provided
+        _globals = globals;
+        _provider = provider;
+        _asyncKeyedLocker = asyncKeyedLocker;
+        _transcriptionService = transcriptionService;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Post([FromForm] PostRequest request, [FromForm] IFormFile file)
+    {
+        // Return if no file is provided
         if (file is null || file.Length is 0)
             throw new NoFileException("No file provided");
 
@@ -48,11 +50,11 @@ public sealed class Transcribe : ControllerBase
         if (!fileExtension.StartsWith("audio/") && !fileExtension.StartsWith("video/"))
             throw new InvalidFileTypeException("File is not audio or video");
 
-        using var loc = await _asyncKeyedLocker.LockAsync(Key, cts.Token).ConfigureAwait(false);
+        using var loc = await _asyncKeyedLocker.LockAsync(_globals.Key, cts.Token).ConfigureAwait(false);
         try
         {
             var response = await _transcriptionService.HandleTranscriptionRequest(file, request, cts.Token);
-            return response.Success ? Ok(response) : BadRequest(response);
+            return Ok(response);
         }
         catch (OperationCanceledException)
         {

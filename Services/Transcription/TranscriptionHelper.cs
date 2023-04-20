@@ -2,8 +2,8 @@ using System.Globalization;
 using AsyncKeyedLock;
 using CliWrap;
 using CsvHelper;
-using Serilog;
 using WhisperAPI.Models;
+using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI.Services.Transcription;
 
@@ -11,22 +11,27 @@ public class TranscriptionHelper
 {
     #region Constructor
 
-    private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
     private readonly Globals _globals;
+    private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
+    private readonly ILogger _logger;
     private readonly IGlobalDownloads _globalDownloads;
-
-    public TranscriptionHelper(AsyncKeyedLocker<string> asyncKeyedLocker, IGlobalDownloads globalDownloads, Globals globals)
-    {
-        _asyncKeyedLocker = asyncKeyedLocker;
-        _globalDownloads = globalDownloads;
-        _globals = globals;
-    }
 
     #endregion
 
     private const string DownloadKey = "download";
 
     #region Methods
+
+    public TranscriptionHelper(Globals globals,
+        AsyncKeyedLocker<string> asyncKeyedLocker,
+        ILogger logger,
+        IGlobalDownloads globalDownloads)
+    {
+        _globals = globals;
+        _asyncKeyedLocker = asyncKeyedLocker;
+        _logger = logger;
+        _globalDownloads = globalDownloads;
+    }
 
     public async Task Transcribe(
         string audioFile,
@@ -68,16 +73,16 @@ public class TranscriptionHelper
         }
         catch (Exception)
         {
-            Log.Error("Whisper failed to transcribe {AudioFile}", audioFile);
+            _logger.Error("Whisper failed to transcribe {AudioFile}", audioFile);
         }
     }
 
     public async Task DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)
     {
-        await _asyncKeyedLocker.LockAsync(DownloadKey).ConfigureAwait(false);
+        using var loc = await _asyncKeyedLocker.LockAsync(DownloadKey).ConfigureAwait(false);
         if (!File.Exists(modelPath))
         {
-            Log.Information("Model {WhisperModel} doesn't exist, downloading...", whisperModel);
+            _logger.Information("Model {WhisperModel} doesn't exist, downloading...", whisperModel);
             await _globalDownloads.DownloadModels(whisperModel);
         }
     }

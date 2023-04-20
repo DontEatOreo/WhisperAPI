@@ -1,10 +1,17 @@
 using CliWrap;
-using Serilog;
+using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI.Services.Audio;
 
 public class AudioConversionService : IAudioConversionService
 {
+    private readonly ILogger _logger;
+
+    public AudioConversionService(ILogger logger)
+    {
+        _logger = logger;
+    }
+
     public async Task ConvertToWavAsync(string inputFilePath, string outputFilePath)
     {
         string[] ffmpegArgs =
@@ -32,7 +39,7 @@ public class AudioConversionService : IAudioConversionService
         }
         catch (Exception e)
         {
-            Log.Error(e, "[{Message}] Could not convert file to wav", e.Message);
+            _logger.Error(e, "[{Message}] Could not convert file to wav", e.Message);
         }
     }
 }
