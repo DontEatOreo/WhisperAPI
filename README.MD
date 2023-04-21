@@ -33,7 +33,7 @@ If you need help with WhisperAPI, please create an issue on GitHub and I will re
 - If you're unsure or don't know ahead of time which country code you need you can omit lang property.
 - Supported Models are: Tiny, Base, Medium and Large. If Model property is omit it will default to base
 - If a model is missing it's going to be automatically downloaded to `WHISPER_FOLDER`
-- If you don't have `ffmpeg` or `make` installed the API won't start.
+- If you don't have `ffmpeg` and `make` installed the API won't start.
 - If you don't have `whisper.cpp` installed, it will be downloaded and installed automatically.
 
 ## Usage
@@ -98,8 +98,7 @@ If the request had ``time_stamps`` set to true, you will instead receive a resul
 On failure (e.g: invalid file format) the response JSON payload will be:
 ```json
 {
-    "success": false,
-    "error_code": "...",
-    "error_message": "..."
+  "success": false,
+  "status": "Http Status Code"
 }
 ```

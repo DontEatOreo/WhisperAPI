@@ -42,8 +42,7 @@ public class Middleware
         await context.Response.WriteAsync(new ErrorDetails
         {
             Success = false,
-            StatusCode = context.Response.StatusCode,
-            Message = exception.Message
+            StatusCode = context.Response.StatusCode
         }.ToString());
     }
 }
@@ -55,9 +54,6 @@ internal class ErrorDetails
 
     [JsonPropertyName("status")]
     public int StatusCode { get; set; }
-
-    [JsonPropertyName("message")]
-    public string Message { get; set; }
 
     public override string ToString() => JsonSerializer.Serialize(this);
 }
