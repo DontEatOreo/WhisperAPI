@@ -1,27 +1,4 @@
-using System.Diagnostics;
-using CliWrap;
-using JetBrains.Annotations;
-using static WhisperAPI.Globals;
-using ILogger = Serilog.ILogger;
-
 namespace WhisperAPI;
-
-public interface IGlobalDownloads
-{
-    Task DownloadModels(WhisperModel whisperModel);
-}
-
-public interface IGlobalChecks
-{
-    [UsedImplicitly]
-    Task CheckForFFmpeg();
-
-    [UsedImplicitly]
-    Task CheckForWhisper();
-
-    [UsedImplicitly]
-    Task CheckForMake();
-}
 
 public class Globals
 {
@@ -49,7 +26,7 @@ public class Globals
     /// <summary>
     /// This is the URL for the Whisper source code
     /// </summary>
-    public const string WhisperUrl = "https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip";
+    public readonly string WhisperUrl = "https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip";
 
     #endregion
 
@@ -91,177 +68,21 @@ public enum WhisperModel
     Large
 }
 
-public class GlobalDownloads : IGlobalDownloads
+public readonly struct AudioTranscriptionOptions
 {
-    #region Constructors
-
-    private readonly Globals _globals;
-    private readonly IHttpClientFactory _httpClient;
-    private readonly ILogger _logger;
-
-    #endregion
-
-    #region Methods
-
-    public GlobalDownloads(Globals globals, IHttpClientFactory httpClient, ILogger logger)
-    {
-        _globals = globals;
-        _httpClient = httpClient;
-        _logger = logger;
-    }
-
-    public async Task DownloadModels(WhisperModel whisperModel)
-    {
-        var modelString = whisperModel.ToString().ToLower();
-        // Source: https://huggingface.co/datasets/ggerganov/whisper.cpp/tree/main
-        var modelUrl = $"https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-{modelString}.bin";
-        var modelPath = Path.Combine(_globals.WhisperFolder, $"ggml-{modelString}.bin");
-
-        using var httpClient = _httpClient.CreateClient();
-        using var response = await httpClient.GetAsync(modelUrl);
-        var redirectUrl = response.RequestMessage?.RequestUri;
-        var model = await httpClient.GetByteArrayAsync(redirectUrl);
-        await using FileStream fileStream = new(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await fileStream.WriteAsync(model);
-
-        _logger.Information("Downloaded {WhisperModel} model", whisperModel);
-    }
-
-    public async Task DownloadWhisper()
-    {
-        var fileName = Path.GetFileName(WhisperUrl);
-
-        var tempPath = Path.GetTempPath();
-        var zipPath = Path.Combine(tempPath, fileName);
-        var unzipPath = Path.Combine(tempPath, "whisper.cpp-master");
-        if (Directory.Exists(unzipPath))
-            Directory.Delete(unzipPath, true);
-
-        _logger.Information("Downloading Whisper...");
-        using var client = _httpClient.CreateClient();
-        using var response = await client.GetAsync(WhisperUrl);
-        var redirectUrl = response.RequestMessage?.RequestUri;
-        var whisper = await client.GetByteArrayAsync(redirectUrl);
-        await using FileStream fileStream = new(zipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await fileStream.WriteAsync(whisper);
-
-        _logger.Information("Unzipping Whisper...");
-        await Cli.Wrap("unzip")
-            .WithArguments(arg =>
-            {
-                arg.Add(zipPath);
-            })
-            .WithWorkingDirectory(tempPath)
-            .WithValidation(CommandResultValidation.ZeroExitCode)
-            .ExecuteAsync();
-
-        // For some reason using Cli.Wrap it's not possible to compile Whisper
-        _logger.Information("Compiling Whisper...");
-        using Process process = new()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "make",
-                WorkingDirectory = unzipPath,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        process.Start();
-        await process.WaitForExitAsync();
-        _logger.Information("Finished compiling Whisper");
-
-        if (File.Exists(_globals.WhisperExecPath))
-            File.Delete(_globals.WhisperExecPath);
-
-        if (!Directory.Exists(_globals.WhisperFolder))
-            Directory.CreateDirectory(_globals.WhisperFolder);
-
-        File.Move(Path.Combine(unzipPath, "main"), Path.Combine(_globals.WhisperFolder, "main"));
-        File.Delete(zipPath);
-        Directory.Delete(unzipPath, true);
-    }
-
-    #endregion
+    public string FileName { get; init; }
+    public string WavFile { get; init; }
+    public string Language { get; init; }
+    public bool Translate { get; init; }
+    public WhisperModel WhisperModel { get; init; }
+    public bool TimeStamp { get; init; }
 }
 
-public class GlobalChecks : IGlobalChecks
+public readonly struct TranscriptionOptions
 {
-    #region Consturctor
-
-    private readonly Globals _globals;
-    private readonly GlobalDownloads _globalDownloads;
-    private readonly ILogger _logger;
-
-    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads, ILogger logger)
-    {
-        _globals = globals;
-        _globalDownloads = globalDownloads;
-        _logger = logger;
-    }
-
-    #endregion
-
-    #region Methods
-
-    public async Task CheckForFFmpeg()
-    {
-        try
-        {
-            await Cli.Wrap("ffmpeg")
-                .WithArguments("-version")
-                .WithValidation(CommandResultValidation.ZeroExitCode)
-                .ExecuteAsync();
-        }
-        catch (Exception)
-        {
-            await Console.Error.WriteLineAsync("FFmpeg is not installed");
-            _logger.Error("FFmpeg is not installed");
-            Environment.Exit(1);
-        }
-    }
-
-    public async Task CheckForWhisper()
-    {
-        try
-        {
-            await Cli.Wrap(_globals.WhisperExecPath)
-                .WithArguments("-h")
-                .WithValidation(CommandResultValidation.ZeroExitCode)
-                .ExecuteAsync();
-        }
-        catch (Exception)
-        {
-            _logger.Information("Whisper is not installed");
-            await _globalDownloads.DownloadWhisper();
-        }
-    }
-
-    /// <summary>
-    /// We're using Process because Cli.Wrap doesn't work with make for some odd reason
-    /// </summary>
-    public async Task CheckForMake()
-    {
-        using Process process = new()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "make",
-                Arguments = "-v",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
-        };
-        process.Start();
-        await process.WaitForExitAsync();
-        if (process.ExitCode != 0)
-        {
-            _logger.Error("Make is not installed");
-            Environment.Exit(1);
-        }
-    }
-
-    #endregion
+    public string AudioFile { get; init; }
+    public string Language { get; init; }
+    public bool Translate { get; init; }
+    public string ModelPath { get; init; }
+    public string OutputFormat { get; init; }
 }
