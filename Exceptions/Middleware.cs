@@ -1,16 +1,18 @@
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 namespace WhisperAPI.Exceptions;
 
 public class Middleware
 {
     private readonly RequestDelegate _next;
+    private readonly TokenBucketRateLimiter _rateLimiter;
 
-    public Middleware(RequestDelegate next)
+    public Middleware(RequestDelegate next, TokenBucketRateLimiter rateLimiter)
     {
         _next = next;
+        _rateLimiter = rateLimiter;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -25,7 +27,7 @@ public class Middleware
         }
     }
 
-    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
@@ -36,24 +38,15 @@ public class Middleware
             InvalidLanguageException => (int)HttpStatusCode.BadRequest,
             InvalidModelException => (int)HttpStatusCode.UnprocessableEntity,
             NoFileException => (int)HttpStatusCode.NotFound,
+            FileProcessingException => (int)HttpStatusCode.UnprocessableEntity,
             _ => throw new ArgumentOutOfRangeException(nameof(exception), exception, null)
         };
 
-        await context.Response.WriteAsync(new ErrorDetails
+        _ = _rateLimiter.TryReplenish();
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(new
         {
-            Success = false,
-            StatusCode = context.Response.StatusCode
-        }.ToString());
+            error = exception.Message
+        }));
     }
-}
-
-internal class ErrorDetails
-{
-    [JsonPropertyName("success")]
-    public bool Success { get; init; }
-
-    [JsonPropertyName("status")]
-    public int StatusCode { get; set; }
-
-    public override string ToString() => JsonSerializer.Serialize(this);
 }

@@ -5,15 +5,8 @@ namespace WhisperAPI.Services.Transcription;
 
 public interface ITranscriptionService
 {
-    Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request,
-        CancellationToken token);
+    Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request, CancellationToken token);
 
     [UsedImplicitly]
-    Task<string> ProcessAudioTranscription(string fileName,
-        string wavFile,
-        string lang,
-        bool translate,
-        WhisperModel whisperModel,
-        bool timeStamp,
-        CancellationToken token);
+    Task<string> TranscribeAudio(AudioTranscriptionOptions o, CancellationToken token);
 }

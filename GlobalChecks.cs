@@ -27,7 +27,7 @@ public class GlobalChecks
     /// </summary>
     public async Task FFmpeg()
     {
-        var startInfo = new ProcessStartInfo
+        ProcessStartInfo startInfo = new()
         {
             FileName = "ffmpeg",
             Arguments = "-version",

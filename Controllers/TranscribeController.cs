@@ -1,5 +1,6 @@
-using AsyncKeyedLock;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
@@ -11,26 +12,22 @@ namespace WhisperAPI.Controllers;
 [Route("[controller]")]
 public sealed class Transcribe : ControllerBase
 {
-    #region Constructor
+    #region Ctor
 
-    private readonly Globals _globals;
     private readonly FileExtensionContentTypeProvider _provider;
-    private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
     private readonly ITranscriptionService _transcriptionService;
+    private readonly TokenBucketRateLimiter _rateLimiter;
 
-    #endregion
+    #endregion Ctor
 
-    public Transcribe(Globals globals,
-        FileExtensionContentTypeProvider provider,
-        AsyncKeyedLocker<string> asyncKeyedLocker,
-        ITranscriptionService transcriptionService)
+    public Transcribe(FileExtensionContentTypeProvider provider, ITranscriptionService transcriptionService, TokenBucketRateLimiter rateLimiter)
     {
-        _globals = globals;
         _provider = provider;
-        _asyncKeyedLocker = asyncKeyedLocker;
         _transcriptionService = transcriptionService;
+        _rateLimiter = rateLimiter;
     }
 
+    [EnableRateLimiting("token")]
     [HttpPost]
     public async Task<IActionResult> Post([FromForm] PostRequest request, [FromForm] IFormFile file)
     {
@@ -50,15 +47,8 @@ public sealed class Transcribe : ControllerBase
         if (!fileExtension.StartsWith("audio/") && !fileExtension.StartsWith("video/"))
             throw new InvalidFileTypeException("File is not audio or video");
 
-        using var loc = await _asyncKeyedLocker.LockAsync(_globals.Key, cts.Token).ConfigureAwait(false);
-        try
-        {
-            var response = await _transcriptionService.HandleTranscriptionRequest(file, request, cts.Token);
-            return Ok(response);
-        }
-        catch (OperationCanceledException)
-        {
-            return StatusCode(499); // 499 Client Closed Request
-        }
+        var response = await _transcriptionService.HandleTranscriptionRequest(file, request, cts.Token);
+        _= _rateLimiter.TryReplenish();
+        return Ok(response);
     }
 }

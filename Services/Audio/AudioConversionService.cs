@@ -1,4 +1,5 @@
-using CliWrap;
+using System.Diagnostics;
+using WhisperAPI.Exceptions;
 using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI.Services.Audio;
@@ -12,34 +13,44 @@ public class AudioConversionService : IAudioConversionService
         _logger = logger;
     }
 
-    public async Task ConvertToWavAsync(string inputFilePath, string outputFilePath)
+    public async Task ConvertToWavAsync(string input, string output)
     {
         string[] ffmpegArgs =
         {
             "-i",
-            inputFilePath,
+            input,
             "-ar",
             "16000",
             "-ac",
             "1",
             "-c:a",
             "pcm_s16le",
-            outputFilePath
+            output
+        };
+
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = "ffmpeg",
+            Arguments = string.Join(" ", ffmpegArgs),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            UseShellExecute = false
         };
 
         try
         {
-            await Cli.Wrap("ffmpeg")
-                .WithArguments(arg =>
-                {
-                    foreach (var ffmpegArg in ffmpegArgs)
-                        arg.Add(ffmpegArg);
-                })
-                .ExecuteAsync();
+            using Process process = new() { StartInfo = startInfo };
+            process.Start();
+            await Task.WhenAll(
+                process.StandardOutput.ReadToEndAsync(),
+                process.StandardError.ReadToEndAsync());
+            await process.WaitForExitAsync();
         }
         catch (Exception e)
         {
             _logger.Error(e, "[{Message}] Could not convert file to wav", e.Message);
+            throw new FileProcessingException("Could not convert file to wav");
         }
     }
 }

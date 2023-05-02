@@ -1,28 +1,19 @@
-using ILogger = Serilog.ILogger;
-
 namespace WhisperAPI;
 
-public class DownloadModelsClient
+public class ModelsClient
 {
-    private readonly Globals _globals;
-    private readonly ILogger _logger;
     private readonly HttpClient _client;
 
-    public DownloadModelsClient(Globals globals, ILogger logger, HttpClient client)
+    public ModelsClient(HttpClient client)
     {
-        _globals = globals;
-        _logger = logger;
         _client = client;
     }
 
-    public async Task Get(string url, string path)
+    public async Task Get(string url, string filePath)
     {
-        using var response = await _client.GetAsync(url);
-        var redirectUrl = response.RequestMessage?.RequestUri;
-        var model = await _client.GetByteArrayAsync(redirectUrl);
-        await using FileStream fileStream = new(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        await fileStream.WriteAsync(model);
-
-        _logger.Information("Downloaded {WhisperModel} model", path);
+        using var response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        await using FileStream fileStream = new(filePath, FileMode.Create);
+        await stream.CopyToAsync(fileStream);
     }
 }

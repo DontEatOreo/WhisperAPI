@@ -1,11 +1,16 @@
 namespace WhisperAPI;
 
-public class MyRateLimitOptions
+public class RateLimitOptions
 {
-    public const string MyRateLimit = "MyRateLimit";
-    public static TimeSpan ReplenishmentPeriod => TimeSpan.MaxValue;
-    public static int QueueLimit => 2;
-    public static int TokenLimit => Environment.ProcessorCount * 2;
-    public static int TokensPerPeriod => 2;
-    public static bool AutoReplenishment => false;
+    public const string RateLimit = "RateLimit";
+
+    public TimeSpan ReplenishmentPeriod = TimeSpan.FromSeconds(10);
+
+    public int QueueLimit => 2;
+
+    public int TokenLimit => Environment.ProcessorCount * 2;
+
+    public int TokensPerPeriod => 2;
+
+    public bool AutoReplenishment => false;
 }

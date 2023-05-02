@@ -9,16 +9,12 @@ namespace WhisperAPI.Services.Transcription;
 
 public class TranscriptionService : ITranscriptionService
 {
-    #region Constructor
+    #region Ctor
 
     private readonly Globals _globals;
     private readonly TranscriptionHelper _transcriptionHelper;
     private readonly IAudioConversionService _audioConversionService;
     private readonly ILogger _logger;
-
-    #endregion
-
-    #region Methods
 
     public TranscriptionService(Globals globals,
         TranscriptionHelper transcriptionHelper,
@@ -31,49 +27,66 @@ public class TranscriptionService : ITranscriptionService
         _logger = logger;
     }
 
+    #endregion Ctor
+
+    #region Methods
+
     public async Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request, CancellationToken token)
     {
-        var lang = request.Lang.Trim().ToLower();
-        if (lang is not "auto")
+        var lang = ValidateLanguage(request.Lang);
+        var modelEnum = ValidateModel(request.Model);
+
+        var filePath = await SaveAudioFileAsync(file, token);
+
+        var wavFilePath = Path.Combine(_globals.AudioFilesFolder, $"{Path.GetFileNameWithoutExtension(filePath)}.wav");
+        AudioTranscriptionOptions options = new()
         {
-            var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
-            if (lang.Length is 2)
-            {
-                foreach (var culture in cultures)
-                {
-                    if (culture.TwoLetterISOLanguageName != lang)
-                        continue;
+            FileName = filePath,
+            WavFile = wavFilePath,
+            Language = lang,
+            Translate = request.Translate,
+            WhisperModel = modelEnum,
+            TimeStamp = request.TimeStamps
+        };
 
-                    lang = culture.EnglishName;
-                    break;
-                }
-            }
+        var result = await TranscribeAudio(options, token);
 
-            foreach (var culture in cultures)
-            {
-                if (!lang.Contains(culture.NativeName))
-                    continue;
+        return new PostResponse
+        {
+            Result = request.TimeStamps
+                ? JsonSerializer.Deserialize<List<TimeStamp>>(result)
+                : result
+        };
+    }
 
-                lang = culture.EnglishName;
-                break;
-            }
-
-            if (cultures.All(c => !lang.Contains(c.EnglishName) || !lang.Contains(c.NativeName)))
-            {
-                _logger.Warning("Invalid language: {Lang}", lang);
-                throw new InvalidLanguageException("Invalid language");
-            }
-
-            lang = new CultureInfo(lang).TwoLetterISOLanguageName;
+    private string ValidateLanguage(string lang)
+    {
+        lang = lang.Trim().ToLower();
+        if (lang == "auto")
+        {
+            return lang;
         }
 
-        if (!Enum.TryParse(request.Model, true, out WhisperModel modelEnum))
-        {
-            _logger.Warning("Invalid model: {Model}", request.Model);
-            throw new InvalidModelException("Invalid model");
-        }
+        var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
+        var cultureInfo = cultures.FirstOrDefault(c => c.TwoLetterISOLanguageName == lang || c.NativeName.Contains(lang));
 
-        // Check if the audio files folder exists, if not create it
+        if (cultureInfo != null)
+            return cultureInfo.TwoLetterISOLanguageName;
+
+        _logger.Warning("Invalid language: {Lang}", lang);
+        throw new InvalidLanguageException("Invalid language");
+    }
+
+    private static WhisperModel ValidateModel(string model)
+    {
+        if (Enum.TryParse(model, true, out WhisperModel modelEnum))
+            return modelEnum;
+
+        throw new InvalidModelException("Invalid model");
+    }
+
+    private async Task<string> SaveAudioFileAsync(IFormFile file, CancellationToken token)
+    {
         if (!Directory.Exists(_globals.AudioFilesFolder))
             Directory.CreateDirectory(_globals.AudioFilesFolder);
 
@@ -81,55 +94,40 @@ public class TranscriptionService : ITranscriptionService
         var fileId = Guid.NewGuid().ToString();
         var fileExt = Path.GetExtension(file.FileName);
         var filePath = Path.Combine(_globals.AudioFilesFolder, $"{fileId}{fileExt}");
-        var wavFilePath = Path.Combine(_globals.AudioFilesFolder, $"{fileId}.wav");
+
         await using FileStream fs = new(filePath, FileMode.Create);
-        await file.CopyToAsync(fs, token).ConfigureAwait(false);
+        await file.CopyToAsync(fs, token);
 
-        var result = await ProcessAudioTranscription(
-            filePath,
-            wavFilePath,
-            lang,
-            request.Translate,
-            modelEnum,
-            request.TimeStamps,
-            token);
-
-        return new PostResponse
-        {
-            Success = true,
-            Result = request.TimeStamps
-                ? JsonSerializer.Deserialize<List<TimeStamp>>(result)
-                : result
-        };
+        return filePath;
     }
 
-    public async Task<string> ProcessAudioTranscription(
-        string fileName,
-        string wavFile,
-        string lang,
-        bool translate,
-        WhisperModel whisperModel,
-        bool timeStamp,
-        CancellationToken token)
+    public async Task<string> TranscribeAudio(AudioTranscriptionOptions o, CancellationToken token)
     {
-        var selectedModelPath = _globals.ModelFilePaths[whisperModel];
-        var selectedOutputFormat = _globals.OutputFormatMapping[timeStamp];
+        var model = _globals.ModelFilePaths[o.WhisperModel];
+        var format = _globals.OutputFormatMapping[o.TimeStamp];
 
-        await _transcriptionHelper.DownloadModelIfNotExists(whisperModel, selectedModelPath);
+        _transcriptionHelper.DownloadModelIfNotExists(o.WhisperModel, model);
 
-        var transcribedFilePath = Path.Combine(_globals.AudioFilesFolder, $"{wavFile}.{selectedOutputFormat[2..]}");
+        var transcribedFilePath = Path.Combine(_globals.AudioFilesFolder, $"{o.WavFile}.{format[2..]}");
         try
         {
-            await _audioConversionService.ConvertToWavAsync(fileName, wavFile);
+            await _audioConversionService.ConvertToWavAsync(o.FileName, o.WavFile);
 
             token.ThrowIfCancellationRequested();
 
-            await _transcriptionHelper.Transcribe(wavFile, lang, translate, selectedModelPath, selectedOutputFormat,
-                token);
+            TranscriptionOptions options = new()
+            {
+                AudioFile = o.WavFile,
+                Language = o.Language,
+                Translate = o.Translate,
+                ModelPath = model,
+                OutputFormat = format
+            };
+            await _transcriptionHelper.Transcribe(options, token);
 
             token.ThrowIfCancellationRequested();
 
-            if (timeStamp)
+            if (o.TimeStamp)
             {
                 var jsonLines = _transcriptionHelper.ConvertToJson(transcribedFilePath);
                 var serialized = JsonSerializer.Serialize(jsonLines).Trim();
@@ -145,15 +143,16 @@ public class TranscriptionService : ITranscriptionService
         }
         finally
         {
-            DeleteFilesAsync(fileName, wavFile, transcribedFilePath);
+            DeleteFilesAsync(o.FileName, o.WavFile, transcribedFilePath);
         }
 
         throw new FileProcessingException("File processing failed");
     }
+
     private static void DeleteFilesAsync(params string[] files)
     {
         foreach (var file in files.Where(File.Exists)) File.Delete(file);
     }
 
-    #endregion
+    #endregion Methods
 }

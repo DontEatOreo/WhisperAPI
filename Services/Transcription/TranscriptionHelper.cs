@@ -1,7 +1,7 @@
+using System.Diagnostics;
 using System.Globalization;
-using AsyncKeyedLock;
-using CliWrap;
 using CsvHelper;
+using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using ILogger = Serilog.ILogger;
 
@@ -9,81 +9,81 @@ namespace WhisperAPI.Services.Transcription;
 
 public class TranscriptionHelper
 {
-    #region Constructor
+    #region Ctor
 
     private readonly Globals _globals;
-    private readonly AsyncKeyedLocker<string> _asyncKeyedLocker;
     private readonly ILogger _logger;
-    private readonly IGlobalDownloads _globalDownloads;
+    private readonly GlobalDownloads _globalDownloads;
 
-    #endregion
-
-    private const string DownloadKey = "download";
-
-    #region Methods
-
-    public TranscriptionHelper(Globals globals,
-        AsyncKeyedLocker<string> asyncKeyedLocker,
-        ILogger logger,
-        IGlobalDownloads globalDownloads)
+    public TranscriptionHelper(Globals globals, ILogger logger, GlobalDownloads globalDownloads)
     {
         _globals = globals;
-        _asyncKeyedLocker = asyncKeyedLocker;
         _logger = logger;
         _globalDownloads = globalDownloads;
     }
 
-    public async Task Transcribe(
-        string audioFile,
-        string lang,
-        bool translate,
-        string modelPath,
-        string outputFormat,
-        CancellationToken token)
+    #endregion Ctor
+
+    private readonly object _modelDownloadLock = new();
+
+    #region Methods
+
+    public async Task Transcribe(TranscriptionOptions options, CancellationToken token)
     {
         List<string> whisperArgs = new()
         {
             "-f",
-            audioFile,
+            options.AudioFile,
             "-m",
-            modelPath,
+            options.ModelPath,
             "-l",
-            lang,
-            outputFormat,
-            "-t",
-            $"{Math.Max(_asyncKeyedLocker.MaxCount / 2, 1)}"
+            options.Language,
+            options.OutputFormat,
+            "-t 2"
         };
-        if (translate)
+        if (options.Translate)
             whisperArgs.Add("-tr");
+
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = _globals.WhisperExecPath,
+            Arguments = string.Join(" ", whisperArgs),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
 
         try
         {
-            await Cli.Wrap(_globals.WhisperExecPath)
-                .WithArguments(arg =>
-                {
-                    foreach (var whisperArg in whisperArgs)
-                        arg.Add(whisperArg);
-                })
-                .WithValidation(CommandResultValidation.ZeroExitCode)
-                .ExecuteAsync(token);
+            using Process process = new() { StartInfo = startInfo };
+            process.Start();
+            await Task.WhenAll(
+                process.StandardOutput.ReadToEndAsync(token),
+                process.StandardError.ReadToEndAsync(token));
+            await process.WaitForExitAsync(token);
         }
         catch (OperationCanceledException)
         {
-            // ignored
+            _logger.Warning("Whisper was cancelled for {AudioFile}", options.AudioFile);
         }
         catch (Exception)
         {
-            _logger.Error("Whisper failed to transcribe {AudioFile}", audioFile);
+            _logger.Error("Whisper failed to transcribe {AudioFile}", options.AudioFile);
+            throw new FileProcessingException("Whisper failed to transcribe the audio file");
         }
     }
 
-    public async Task DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)
+    public void DownloadModelIfNotExists(WhisperModel whisperModel, string modelPath)
     {
-        using var loc = await _asyncKeyedLocker.LockAsync(DownloadKey).ConfigureAwait(false);
-        if (!File.Exists(modelPath))
+        if (File.Exists(modelPath)) return;
+
+        lock (_modelDownloadLock)
         {
+            if (File.Exists(modelPath)) return;
+
             _logger.Information("Model {WhisperModel} doesn't exist, downloading...", whisperModel);
-            await _globalDownloads.DownloadModels(whisperModel);
+            _globalDownloads.Model(whisperModel).Wait();
         }
     }
 
@@ -96,7 +96,15 @@ public class TranscriptionHelper
          * 0,5120," Most conversations about performance are a total waste of time, not because performance"
          * 5120,10600," is an important, but because people feel very, very strongly about performance."
          */
-        using StreamReader reader = new(path);
+        StreamReader reader;
+        try
+        {
+            reader = new StreamReader(path);
+        }
+        catch (Exception)
+        {
+            throw new FileProcessingException("Whisper failed to transcribe the audio file");
+        }
         using CsvReader csv = new(reader, CultureInfo.InvariantCulture);
         var records = csv.GetRecords<CsvFile>();
 
@@ -116,5 +124,5 @@ public class TranscriptionHelper
         return jsonLines;
     }
 
-    #endregion
+    #endregion Methods
 }

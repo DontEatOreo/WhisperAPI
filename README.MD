@@ -29,7 +29,7 @@ If you need help with WhisperAPI, please create an issue on GitHub and I will re
 
 ### Notes:
 
-- You can use any country code supported by OpenAI Whisper (You can also use language names like English, German, Japanese, etc)
+- You can use any language codes supported by OpenAI Whisper (You can also use language names like English, German, Japanese, etc or language codes like en, de, ja, etc)
 - If you're unsure or don't know ahead of time which country code you need you can omit lang property.
 - Supported Models are: Tiny, Base, Medium and Large. If Model property is omit it will default to base
 - If a model is missing it's going to be automatically downloaded to `WHISPER_FOLDER`
@@ -70,7 +70,6 @@ curl -X POST \
 The response will be a JSON payload with the following format:
 ```json
 {
-    "success": true,
     "result": "Hello World"
 }
 ```
@@ -79,7 +78,6 @@ If the request had ``time_stamps`` set to true, you will instead receive a resul
 - `start` and `end` is the period of time in seconds which something was said.
 ```json
 {
-  "success": true,
   "result": [
     {
       "start": 0,
@@ -98,7 +96,6 @@ If the request had ``time_stamps`` set to true, you will instead receive a resul
 On failure (e.g: invalid file format) the response JSON payload will be:
 ```json
 {
-  "success": false,
-  "status": "Http Status Code"
+  "error": "Error Message"
 }
 ```
