@@ -2,13 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace WhisperAPI.Models;
 
-public struct TimeStamp
+public class TimeStamp
 {
     [JsonPropertyName("start")]
-    public int Start { get; set; }
+    public double Start { get; set; }
 
     [JsonPropertyName("end")]
-    public int End { get; set; }
+    public double End { get; set; }
 
     [JsonPropertyName("text")]
     public string? Text { get; set; }

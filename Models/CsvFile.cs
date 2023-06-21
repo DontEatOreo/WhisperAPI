@@ -2,7 +2,7 @@ using CsvHelper.Configuration.Attributes;
 
 namespace WhisperAPI.Models;
 
-public struct CsvFile
+public class CsvFile
 {
     [Name("start")]
     public string Start { get; set; }

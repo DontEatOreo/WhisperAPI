@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace WhisperAPI.Models;
 
-public struct PostResponse
+public class PostResponse
 {
     [JsonPropertyName("result")]
     public object? Result { get; set; }
