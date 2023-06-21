@@ -27,9 +27,9 @@ public class GlobalDownloads
     public async Task Model(WhisperModel whisperModel)
     {
         var modelString = whisperModel.ToString().ToLower();
-        // Source: https://huggingface.co/ggerganov/whisper.cpp/raw/main/
+        // Source: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/
         var modelName = $"ggml-{modelString}.bin";
-        Uri modelUri = new($"https://huggingface.co/ggerganov/whisper.cpp/raw/main/{modelName}");
+        Uri modelUri = new($"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{modelName}");
         var modelPath = Path.Combine(_globals.WhisperFolder, modelName);
 
         _logger.Information("Downloading {WhisperModel} model...", whisperModel);
