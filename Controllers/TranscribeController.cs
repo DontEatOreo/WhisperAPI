@@ -14,13 +14,15 @@ public sealed class Transcribe : ControllerBase
 {
     #region Ctor
 
-    private readonly FileExtensionContentTypeProvider _provider;
+    private readonly IContentTypeProvider _provider;
     private readonly ITranscriptionService _transcriptionService;
     private readonly TokenBucketRateLimiter _rateLimiter;
 
     #endregion Ctor
 
-    public Transcribe(FileExtensionContentTypeProvider provider, ITranscriptionService transcriptionService, TokenBucketRateLimiter rateLimiter)
+    public Transcribe(IContentTypeProvider provider,
+        ITranscriptionService transcriptionService,
+        TokenBucketRateLimiter rateLimiter)
     {
         _provider = provider;
         _transcriptionService = transcriptionService;
@@ -44,8 +46,11 @@ public sealed class Transcribe : ControllerBase
             : file.ContentType;
 
         // Return if file is not audio or video
-        if (!fileExtension.StartsWith("audio/") && !fileExtension.StartsWith("video/"))
-            throw new InvalidFileTypeException("File is not audio or video");
+        var hasAudio = fileExtension.StartsWith("audio/");
+        var hasVideo = fileExtension.StartsWith("video/");
+        const string error = "File is not audio or video";
+        if (!hasAudio && !hasVideo)
+            throw new InvalidFileTypeException(error);
 
         var response = await _transcriptionService.HandleTranscriptionRequest(file, request, cts.Token);
         _= _rateLimiter.TryReplenish();

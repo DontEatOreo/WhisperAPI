@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Mime;
+using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -9,6 +11,22 @@ using WhisperAPI;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Services.Audio;
 using WhisperAPI.Services.Transcription;
+
+#region Html
+
+const string html = @"
+<!DOCTYPE html>
+<html lang=""en"">
+<a href=""https://github.com/DontEatOreo/WhisperAPI"" target=""_blank"">Docs</a>
+<style>
+a {
+    font-size: 100px;
+}
+</style>
+</html>
+";
+
+#endregion
 
 var builder = WebApplication.CreateBuilder();
 
@@ -59,7 +77,7 @@ builder.Services.Configure<TokenBucketRateLimiterOptions>(options =>
 
 #endregion RateLimiting
 
-builder.Services.AddSingleton<FileExtensionContentTypeProvider>();
+builder.Services.AddSingleton<IContentTypeProvider, FileExtensionContentTypeProvider>();
 builder.Services.AddSingleton<TranscriptionHelper>();
 builder.Services.AddSingleton<Globals>();
 
@@ -92,7 +110,31 @@ app.UseAuthorization();
 app.MapControllers();
 app.UseMiddleware<Middleware>();
 app.UseRateLimiter();
-static string GetTicks() => (DateTime.Now.Ticks & 0x11111).ToString("00000");
-app.MapGet("/", () => Results.Ok($"Token Limiter {GetTicks()}"))
-    .RequireRateLimiting(tokenPolicy);
+app.MapGet("/", () => Results.Extensions.Html(html));
 app.Run();
+
+internal static class ResultsExtensions
+{
+    public static IResult Html(this IResultExtensions resultExtensions, string html)
+    {
+        ArgumentNullException.ThrowIfNull(resultExtensions);
+        return new HtmlResult(html);
+    }
+}
+
+internal class HtmlResult : IResult
+{
+    private readonly string _html;
+
+    public HtmlResult(string html)
+    {
+        _html = html;
+    }
+
+    public Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.Response.ContentType = MediaTypeNames.Text.Html;
+        httpContext.Response.ContentLength = Encoding.UTF8.GetByteCount(_html);
+        return httpContext.Response.WriteAsync(_html);
+    }
+}

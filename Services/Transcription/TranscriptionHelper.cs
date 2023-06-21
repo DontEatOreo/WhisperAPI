@@ -44,7 +44,7 @@ public class TranscriptionHelper
         if (options.Translate)
             whisperArgs.Add("-tr");
 
-        ProcessStartInfo startInfo = new()
+        ProcessStartInfo whisperInfo = new()
         {
             FileName = _globals.WhisperExecPath,
             Arguments = string.Join(" ", whisperArgs),
@@ -56,7 +56,7 @@ public class TranscriptionHelper
 
         try
         {
-            using Process process = new() { StartInfo = startInfo };
+            using Process process = new() { StartInfo = whisperInfo };
             process.Start();
             await Task.WhenAll(
                 process.StandardOutput.ReadToEndAsync(token),
@@ -89,6 +89,12 @@ public class TranscriptionHelper
 
     public List<TimeStamp> ConvertToJson(string path)
     {
+        if (!File.Exists(path))
+        {
+            const string error = "File doesn't exist";
+            throw new FileProcessingException(error);
+        }
+
         List<TimeStamp> jsonLines = new();
         /*
          * The csv format:
@@ -96,31 +102,36 @@ public class TranscriptionHelper
          * 0,5120," Most conversations about performance are a total waste of time, not because performance"
          * 5120,10600," is an important, but because people feel very, very strongly about performance."
          */
-        StreamReader reader;
+        using StreamReader reader = new(path);
+        using CsvReader csv = new(reader, CultureInfo.InvariantCulture);
         try
         {
-            reader = new StreamReader(path);
+            var records = csv.GetRecords<CsvFile>();
+            foreach (var record in records)
+            {
+                var text = record.Text.Trim();
+
+                var start = int.TryParse(record.Start, out var startInt)
+                    ? TimeSpan.FromMilliseconds(startInt)
+                    : TimeSpan.Zero;
+                var end = int.TryParse(record.End, out var endInt)
+                    ? TimeSpan.FromMilliseconds(endInt)
+                    : TimeSpan.Zero;
+
+                TimeStamp timeStamp = new()
+                {
+                    Start = start.TotalSeconds,
+                    End = end.TotalSeconds,
+                    Text = text
+                };
+                jsonLines.Add(timeStamp);
+            }
         }
         catch (Exception)
         {
-            throw new FileProcessingException("Whisper failed to transcribe the audio file");
+            const string error = "Whisper failed to transcribe the audio file";
+            throw new FileProcessingException(error);
         }
-        using CsvReader csv = new(reader, CultureInfo.InvariantCulture);
-        var records = csv.GetRecords<CsvFile>();
-
-        foreach (var record in records)
-        {
-            var text = record.Text.Trim();
-            var start = int.TryParse(record.Start, out var startInt) ? TimeSpan.FromMilliseconds(startInt) : TimeSpan.Zero;
-            var end = int.TryParse(record.End, out var endInt) ? TimeSpan.FromMilliseconds(endInt) : TimeSpan.Zero;
-            jsonLines.Add(new TimeStamp
-            {
-                Start = (int)start.TotalSeconds,
-                End = (int)end.TotalSeconds,
-                Text = text
-            });
-        }
-
         return jsonLines;
     }
 

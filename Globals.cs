@@ -19,14 +19,9 @@ public class Globals
     public readonly string WhisperExecPath;
 
     /// <summary>
-    /// This is the key for AsyncKeyedLocker
-    /// </summary>
-    public readonly string Key = "GlobalKey";
-
-    /// <summary>
     /// This is the URL for the Whisper source code
     /// </summary>
-    public readonly string WhisperUrl = "https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip";
+    public readonly Uri WhisperUrl = new("https://github.com/ggerganov/whisper.cpp/archive/refs/heads/master.zip");
 
     #endregion
 
