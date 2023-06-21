@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI;
 
@@ -9,9 +8,9 @@ public class GlobalChecks
 
     private readonly Globals _globals;
     private readonly GlobalDownloads _globalDownloads;
-    private readonly ILogger _logger;
+    private readonly Serilog.ILogger _logger;
 
-    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads, ILogger logger)
+    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads, Serilog.ILogger logger)
     {
         _globals = globals;
         _globalDownloads = globalDownloads;
@@ -27,7 +26,7 @@ public class GlobalChecks
     /// </summary>
     public async Task FFmpeg()
     {
-        ProcessStartInfo startInfo = new()
+        ProcessStartInfo ffmpegInfo = new()
         {
             FileName = "ffmpeg",
             Arguments = "-version",
@@ -39,13 +38,13 @@ public class GlobalChecks
 
         try
         {
-            using var process = new Process { StartInfo = startInfo };
+            using var process = new Process { StartInfo = ffmpegInfo };
             process.Start();
             await Task.WhenAll(
                 process.StandardOutput.ReadToEndAsync(),
                 process.StandardError.ReadToEndAsync());
             await process.WaitForExitAsync();
-            if (process.ExitCode != 0)
+            if (process.ExitCode is not 0)
             {
                 await Console.Error.WriteLineAsync("FFmpeg is not installed");
                 _logger.Error("FFmpeg is not installed");
@@ -65,7 +64,7 @@ public class GlobalChecks
     /// </summary>
     public async Task Whisper()
     {
-        ProcessStartInfo startInfo = new()
+        ProcessStartInfo whisperInfo = new()
         {
             FileName = _globals.WhisperExecPath,
             Arguments = "-h",
@@ -77,13 +76,13 @@ public class GlobalChecks
 
         try
         {
-            using Process process = new() { StartInfo = startInfo };
+            using Process process = new() { StartInfo = whisperInfo };
             process.Start();
             await Task.WhenAll(
                 process.StandardOutput.ReadToEndAsync(),
                 process.StandardError.ReadToEndAsync());
             await process.WaitForExitAsync();
-            if (process.ExitCode != 0)
+            if (process.ExitCode is not 0)
             {
                 _logger.Information("Whisper is not installed");
                 await _globalDownloads.Whisper();
@@ -101,20 +100,19 @@ public class GlobalChecks
     /// </summary>
     public async Task Make()
     {
-        using Process process = new()
+        ProcessStartInfo makeInfo = new()
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "make",
-                Arguments = "-v",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }
+            FileName = "make",
+            Arguments = "-v",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
+        using Process process = new() { StartInfo = makeInfo };
         process.Start();
+
         await process.WaitForExitAsync();
-        if (process.ExitCode != 0)
+        if (process.ExitCode is not 0)
         {
             _logger.Error("Make is not installed");
             Environment.Exit(1);
