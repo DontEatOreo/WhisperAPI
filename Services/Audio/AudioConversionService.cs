@@ -1,14 +1,13 @@
 using System.Diagnostics;
 using WhisperAPI.Exceptions;
-using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI.Services.Audio;
 
 public class AudioConversionService : IAudioConversionService
 {
-    private readonly ILogger _logger;
+    private readonly Serilog.ILogger _logger;
 
-    public AudioConversionService(ILogger logger)
+    public AudioConversionService(Serilog.ILogger logger)
     {
         _logger = logger;
     }
@@ -49,8 +48,9 @@ public class AudioConversionService : IAudioConversionService
         }
         catch (Exception e)
         {
+            const string error = "Could not convert file to wav";
             _logger.Error(e, "[{Message}] Could not convert file to wav", e.Message);
-            throw new FileProcessingException("Could not convert file to wav");
+            throw new FileProcessingException(error);
         }
     }
 }

@@ -38,7 +38,8 @@ public class TranscriptionService : ITranscriptionService
 
         var filePath = await SaveAudioFileAsync(file, token);
 
-        var wavFilePath = Path.Combine(_globals.AudioFilesFolder, $"{Path.GetFileNameWithoutExtension(filePath)}.wav");
+        var filePathNoExt = $"{Path.GetFileNameWithoutExtension(filePath)}.wav";
+        var wavFilePath = Path.Combine(_globals.AudioFilesFolder, filePathNoExt);
         AudioTranscriptionOptions options = new()
         {
             FileName = filePath,
@@ -62,7 +63,7 @@ public class TranscriptionService : ITranscriptionService
     private string ValidateLanguage(string lang)
     {
         lang = lang.Trim().ToLower();
-        if (lang == "auto")
+        if (lang is "auto")
         {
             return lang;
         }
@@ -70,7 +71,7 @@ public class TranscriptionService : ITranscriptionService
         var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
         var cultureInfo = cultures.FirstOrDefault(c => c.TwoLetterISOLanguageName == lang || c.NativeName.Contains(lang));
 
-        if (cultureInfo != null)
+        if (cultureInfo is not null)
             return cultureInfo.TwoLetterISOLanguageName;
 
         _logger.Warning("Invalid language: {Lang}", lang);
@@ -108,7 +109,8 @@ public class TranscriptionService : ITranscriptionService
 
         _transcriptionHelper.DownloadModelIfNotExists(o.WhisperModel, model);
 
-        var transcribedFilePath = Path.Combine(_globals.AudioFilesFolder, $"{o.WavFile}.{format[2..]}");
+        var distFile = $"{o.WavFile}.{format[2..]}";
+        var transcribedFilePath = Path.Combine(_globals.AudioFilesFolder, distFile);
         try
         {
             await _audioConversionService.ConvertToWavAsync(o.FileName, o.WavFile);
@@ -139,14 +141,16 @@ public class TranscriptionService : ITranscriptionService
         }
         catch (OperationCanceledException)
         {
-            _logger.Warning("Transcription cancelled");
+            const string cancelled = "Transcription cancelled";
+            _logger.Warning(cancelled);
         }
         finally
         {
             DeleteFilesAsync(o.FileName, o.WavFile, transcribedFilePath);
         }
 
-        throw new FileProcessingException("File processing failed");
+        const string error = "Transcription failed";
+        throw new FileProcessingException(error);
     }
 
     private static void DeleteFilesAsync(params string[] files)
