@@ -4,22 +4,12 @@ namespace WhisperAPI;
 
 public class GlobalChecks
 {
-    #region Ctor
-
-    private readonly Globals _globals;
-    private readonly GlobalDownloads _globalDownloads;
     private readonly Serilog.ILogger _logger;
 
-    public GlobalChecks(Globals globals, GlobalDownloads globalDownloads, Serilog.ILogger logger)
+    public GlobalChecks(Serilog.ILogger logger)
     {
-        _globals = globals;
-        _globalDownloads = globalDownloads;
         _logger = logger;
     }
-
-    #endregion Ctor
-
-    #region Methods
 
     /// <summary>
     /// Check if FFmpeg is installed
@@ -58,66 +48,4 @@ public class GlobalChecks
             Environment.Exit(1);
         }
     }
-
-    /// <summary>
-    /// Check if Whisper is installed
-    /// </summary>
-    public async Task Whisper()
-    {
-        ProcessStartInfo whisperInfo = new()
-        {
-            FileName = _globals.WhisperExecPath,
-            Arguments = "-h",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        try
-        {
-            using Process process = new() { StartInfo = whisperInfo };
-            process.Start();
-            await Task.WhenAll(
-                process.StandardOutput.ReadToEndAsync(),
-                process.StandardError.ReadToEndAsync());
-            await process.WaitForExitAsync();
-            if (process.ExitCode is not 0)
-            {
-                _logger.Information("Whisper is not installed");
-                await _globalDownloads.Whisper();
-            }
-        }
-        catch (Exception)
-        {
-            _logger.Information("Whisper is not installed");
-            await _globalDownloads.Whisper();
-        }
-    }
-
-    /// <summary>
-    /// Checks if make is installed
-    /// </summary>
-    public async Task Make()
-    {
-        ProcessStartInfo makeInfo = new()
-        {
-            FileName = "make",
-            Arguments = "-v",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        using Process process = new() { StartInfo = makeInfo };
-        process.Start();
-
-        await process.WaitForExitAsync();
-        if (process.ExitCode is not 0)
-        {
-            _logger.Error("Make is not installed");
-            Environment.Exit(1);
-        }
-    }
-
-    #endregion Methods
 }

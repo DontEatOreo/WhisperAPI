@@ -1,86 +1,29 @@
-using System.Diagnostics;
-using System.IO.Compression;
+using Microsoft.Extensions.Options;
+using Whisper.net.Ggml;
 
 namespace WhisperAPI;
 
 public class GlobalDownloads
 {
-    #region Ctor
-
-    private readonly Globals _globals;
-    private readonly ModelsClient _modelsClient;
-    private readonly WhisperClient _whisperClient;
+    private readonly AppSettings _appSettings;
     private readonly Serilog.ILogger _logger;
 
-    public GlobalDownloads(Globals globals, ModelsClient modelsClient, Serilog.ILogger logger, WhisperClient whisperClient)
+    public GlobalDownloads(IOptions<AppSettings> options, Serilog.ILogger logger)
     {
-        _globals = globals;
-        _modelsClient = modelsClient;
+        _appSettings = options.Value;
         _logger = logger;
-        _whisperClient = whisperClient;
     }
 
-    #endregion Ctor
-
-    #region Methods
-
-    public async Task Model(WhisperModel whisperModel)
+    public async Task DownloadModel(GgmlType ggmlType)
     {
-        var modelString = whisperModel.ToString().ToLower();
-        // Source: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/
-        var modelName = $"ggml-{modelString}.bin";
-        Uri modelUri = new($"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{modelName}");
-        var modelPath = Path.Combine(_globals.WhisperFolder, modelName);
-
-        _logger.Information("Downloading {WhisperModel} model...", whisperModel);
-        await _modelsClient.Get(modelUri, modelPath);
-        _logger.Information("Downloaded {WhisperModel} model", whisperModel);
+        _logger.Information("Downloading {WhisperModel} model...", ggmlType.ToString());
+        await using var modelStream = await WhisperGgmlDownloader.GetGgmlModelAsync(ggmlType);
+        var whisperFolder = Path.GetFullPath(_appSettings.WhisperFolder);
+        if (!Directory.Exists(whisperFolder))
+            throw new DirectoryNotFoundException($"Whisper folder not found at {whisperFolder}");
+        var modelPath = Path.Combine(whisperFolder, $"ggml-{ggmlType.ToString().ToLower()}.bin");
+        await using var fileWriter = File.OpenWrite(modelPath);
+        await modelStream.CopyToAsync(fileWriter);
+        _logger.Information("Downloaded {WhisperModel} model", ggmlType.ToString());
     }
-
-    public async Task Whisper()
-    {
-        var fileName = Path.GetFileName(_globals.WhisperUrl.ToString());
-
-        var tempPath = Path.GetTempPath();
-        var zipPath = Path.Combine(tempPath, fileName);
-        var unzipPath = Path.Combine(tempPath, "whisper.cpp-master");
-        if (Directory.Exists(unzipPath))
-            Directory.Delete(unzipPath, true);
-
-        _logger.Information("Downloading Whisper...");
-        await _whisperClient.Get(_globals.WhisperUrl, zipPath);
-        _logger.Information("Finish downloading: {WhisperModel} model", fileName);
-
-        _logger.Information("Unzipping Whisper...");
-        ZipFile.ExtractToDirectory(zipPath, Path.GetTempPath());
-
-        _logger.Information("Compiling Whisper...");
-        ProcessStartInfo makeInfo = new()
-        {
-            FileName = "make",
-            WorkingDirectory = unzipPath,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        using Process process = new() { StartInfo = makeInfo };
-        process.Start();
-        await process.WaitForExitAsync();
-        _logger.Information("Finished compiling Whisper");
-
-        if (File.Exists(_globals.WhisperExecPath))
-            File.Delete(_globals.WhisperExecPath);
-
-        if (!Directory.Exists(_globals.WhisperFolder))
-            Directory.CreateDirectory(_globals.WhisperFolder);
-
-        var source = Path.Combine(unzipPath, "main");
-        var dest = Path.Combine(_globals.WhisperFolder, "main");
-        File.Move(source, dest);
-
-        File.Delete(zipPath);
-        Directory.Delete(unzipPath, true);
-    }
-
-    #endregion Methods
 }

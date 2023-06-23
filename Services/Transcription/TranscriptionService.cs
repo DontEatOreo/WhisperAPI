@@ -1,87 +1,73 @@
 using System.Globalization;
 using System.Text.Json;
+using Whisper.net.Ggml;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Services.Audio;
-using ILogger = Serilog.ILogger;
 
 namespace WhisperAPI.Services.Transcription;
 
 public class TranscriptionService : ITranscriptionService
 {
-    #region Ctor
-
     private readonly Globals _globals;
+    private readonly GlobalDownloads _downloads;
     private readonly TranscriptionHelper _transcriptionHelper;
     private readonly IAudioConversionService _audioConversionService;
-    private readonly ILogger _logger;
+    private readonly Serilog.ILogger _logger;
 
     public TranscriptionService(Globals globals,
         TranscriptionHelper transcriptionHelper,
         IAudioConversionService audioConversionService,
-        ILogger logger)
+        Serilog.ILogger logger, GlobalDownloads downloads)
     {
         _globals = globals;
         _transcriptionHelper = transcriptionHelper;
         _audioConversionService = audioConversionService;
         _logger = logger;
+        _downloads = downloads;
     }
 
-    #endregion Ctor
-
-    #region Methods
-
-    public async Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request, CancellationToken token)
+    public async Task<JsonDocument> Handler(IFormFile file, PostRequest request, CancellationToken token)
     {
-        var lang = ValidateLanguage(request.Lang);
+        string? lang = null;
+        if (request.Lang is not null)
+            lang = ValidateLanguage(request.Lang);
         var modelEnum = ValidateModel(request.Model);
 
         var filePath = await SaveAudioFileAsync(file, token);
 
         var filePathNoExt = $"{Path.GetFileNameWithoutExtension(filePath)}.wav";
         var wavFilePath = Path.Combine(_globals.AudioFilesFolder, filePathNoExt);
-        AudioTranscriptionOptions options = new()
-        {
-            FileName = filePath,
-            WavFile = wavFilePath,
-            Language = lang,
-            Translate = request.Translate,
-            WhisperModel = modelEnum,
-            TimeStamp = request.TimeStamps
-        };
+        AudioOptions options = new(filePath, wavFilePath, lang, request.Translate, modelEnum);
 
         var result = await TranscribeAudio(options, token);
-
-        return new PostResponse
-        {
-            Result = request.TimeStamps
-                ? JsonSerializer.Deserialize<List<TimeStamp>>(result)
-                : result
-        };
+        var json = JsonSerializer.Serialize(result);
+        var jsonDocument = JsonDocument.Parse(json);
+        return jsonDocument;
     }
 
     private string ValidateLanguage(string lang)
     {
         lang = lang.Trim().ToLower();
-        if (lang is "auto")
-        {
+        var isAuto = lang is "auto";
+        if (isAuto)
             return lang;
-        }
 
         var cultures = CultureInfo.GetCultures(CultureTypes.NeutralCultures);
-        var cultureInfo = cultures.FirstOrDefault(c => c.TwoLetterISOLanguageName == lang || c.NativeName.Contains(lang));
-
-        if (cultureInfo is not null)
-            return cultureInfo.TwoLetterISOLanguageName;
+        if (cultures.Any(culture => culture.TwoLetterISOLanguageName == lang || culture.NativeName.Contains(lang)))
+            return lang;
 
         _logger.Warning("Invalid language: {Lang}", lang);
         throw new InvalidLanguageException("Invalid language");
     }
 
-    private static WhisperModel ValidateModel(string model)
+    private static GgmlType ValidateModel(string model)
     {
-        if (Enum.TryParse(model, true, out WhisperModel modelEnum))
-            return modelEnum;
+        var parse = Enum.TryParse(model, true, out GgmlType ggmlType);
+        if (ggmlType.ToString().ToLower().Contains("v1"))
+            return GgmlType.Base; // v1 model exists but we don't want to use it
+        if (parse)
+            return ggmlType;
 
         throw new InvalidModelException("Invalid model");
     }
@@ -102,61 +88,45 @@ public class TranscriptionService : ITranscriptionService
         return filePath;
     }
 
-    public async Task<string> TranscribeAudio(AudioTranscriptionOptions o, CancellationToken token)
+    public async Task<JsonDocument> TranscribeAudio(AudioOptions o, CancellationToken token)
     {
         var model = _globals.ModelFilePaths[o.WhisperModel];
-        var format = _globals.OutputFormatMapping[o.TimeStamp];
 
-        _transcriptionHelper.DownloadModelIfNotExists(o.WhisperModel, model);
+        // check if model exists
+        if (!File.Exists(model))
+            await _downloads.DownloadModel(o.WhisperModel);
 
-        var distFile = $"{o.WavFile}.{format[2..]}";
+        var distFile = $"{o.WavFile}.wav";
         var transcribedFilePath = Path.Combine(_globals.AudioFilesFolder, distFile);
+
         try
         {
+            token.ThrowIfCancellationRequested();
             await _audioConversionService.ConvertToWavAsync(o.FileName, o.WavFile);
-
             token.ThrowIfCancellationRequested();
 
-            TranscriptionOptions options = new()
-            {
-                AudioFile = o.WavFile,
-                Language = o.Language,
-                Translate = o.Translate,
-                ModelPath = model,
-                OutputFormat = format
-            };
-            await _transcriptionHelper.Transcribe(options, token);
+            TranscriptionOptions options = new(o.WavFile, o.Language, o.Translate, model);
 
+            var transcribe = await _transcriptionHelper.Transcribe(options, token);
+            var json = JsonSerializer.Serialize(transcribe);
+            var jsonDocument = JsonDocument.Parse(json);
             token.ThrowIfCancellationRequested();
 
-            if (o.TimeStamp)
-            {
-                var jsonLines = _transcriptionHelper.ConvertToJson(transcribedFilePath);
-                var serialized = JsonSerializer.Serialize(jsonLines).Trim();
-                return serialized;
-            }
-
-            var transcribedText = await File.ReadAllTextAsync(transcribedFilePath, token);
-            return transcribedText.Trim();
+            return jsonDocument;
         }
         catch (OperationCanceledException)
         {
-            const string cancelled = "Transcription cancelled";
-            _logger.Warning(cancelled);
+            const string error = "Transcription failed";
+            throw new FileProcessingException(error);
         }
         finally
         {
             DeleteFilesAsync(o.FileName, o.WavFile, transcribedFilePath);
         }
-
-        const string error = "Transcription failed";
-        throw new FileProcessingException(error);
     }
 
     private static void DeleteFilesAsync(params string[] files)
     {
         foreach (var file in files.Where(File.Exists)) File.Delete(file);
     }
-
-    #endregion Methods
 }

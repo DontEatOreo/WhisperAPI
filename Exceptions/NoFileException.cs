@@ -2,5 +2,5 @@ namespace WhisperAPI.Exceptions;
 
 public class NoFileException : FileNotFoundException
 {
-    public NoFileException(string message) : base (message) {}
+    public NoFileException(string message) : base(message) { }
 }

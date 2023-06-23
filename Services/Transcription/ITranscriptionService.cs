@@ -1,11 +1,12 @@
+using System.Text.Json;
 using WhisperAPI.Models;
 
 namespace WhisperAPI.Services.Transcription;
 
 public interface ITranscriptionService
 {
-    Task<PostResponse> HandleTranscriptionRequest(IFormFile file, PostRequest request, CancellationToken token);
+    Task<JsonDocument> Handler(IFormFile file, PostRequest request, CancellationToken token);
 
     // ReSharper disable once UnusedMemberInSuper.Global
-    Task<string> TranscribeAudio(AudioTranscriptionOptions o, CancellationToken token);
+    Task<JsonDocument> TranscribeAudio(AudioOptions o, CancellationToken token);
 }

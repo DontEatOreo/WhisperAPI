@@ -12,8 +12,6 @@ using WhisperAPI.Exceptions;
 using WhisperAPI.Services.Audio;
 using WhisperAPI.Services.Transcription;
 
-#region Html
-
 const string html = @"
 <!DOCTYPE html>
 <html lang=""en"">
@@ -26,14 +24,10 @@ a {
 </html>
 ";
 
-#endregion
-
 var builder = WebApplication.CreateBuilder();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-#region HttpClients
 
 builder.Services.AddHttpClient<ModelsClient>();
 builder.Services.AddHttpClient<WhisperClient>();
@@ -42,10 +36,6 @@ builder.Services.Configure<KestrelServerOptions>(options =>
 {
     options.Limits.MaxRequestBodySize = long.MaxValue;
 });
-
-#endregion HttpClients
-
-#region RateLimiting
 
 const string tokenPolicy = "token";
 RateLimitOptions tokenBucketOptions = new();
@@ -75,8 +65,6 @@ builder.Services.Configure<TokenBucketRateLimiterOptions>(options =>
     options.AutoReplenishment = tokenBucketOptions.AutoReplenishment;
 });
 
-#endregion RateLimiting
-
 builder.Services.AddSingleton<IContentTypeProvider, FileExtensionContentTypeProvider>();
 builder.Services.AddSingleton<TranscriptionHelper>();
 builder.Services.AddSingleton<Globals>();
@@ -102,8 +90,6 @@ var app = builder.Build();
 
 var checks = app.Services.GetRequiredService<GlobalChecks>();
 await checks.FFmpeg();
-await checks.Whisper();
-await checks.Make();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
