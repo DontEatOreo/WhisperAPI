@@ -2,14 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace WhisperAPI.Models;
 
-public class TimeStamp
-{
-    [JsonPropertyName("start")]
-    public double Start { get; set; }
-
-    [JsonPropertyName("end")]
-    public double End { get; set; }
-
-    [JsonPropertyName("text")]
-    public string? Text { get; set; }
-}
+public record TimeStamp(
+    [property: JsonPropertyName("start")] TimeSpan Start,
+    [property: JsonPropertyName("end")] TimeSpan End,
+    [property: JsonPropertyName("probability")] float? Probability,
+    [property: JsonPropertyName("text")] string? Text
+);

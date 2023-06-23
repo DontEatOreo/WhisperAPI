@@ -12,13 +12,9 @@ namespace WhisperAPI.Controllers;
 [Route("[controller]")]
 public sealed class Transcribe : ControllerBase
 {
-    #region Ctor
-
     private readonly IContentTypeProvider _provider;
     private readonly ITranscriptionService _transcriptionService;
     private readonly TokenBucketRateLimiter _rateLimiter;
-
-    #endregion Ctor
 
     public Transcribe(IContentTypeProvider provider,
         ITranscriptionService transcriptionService,
@@ -52,8 +48,8 @@ public sealed class Transcribe : ControllerBase
         if (!hasAudio && !hasVideo)
             throw new InvalidFileTypeException(error);
 
-        var response = await _transcriptionService.HandleTranscriptionRequest(file, request, cts.Token);
-        _= _rateLimiter.TryReplenish();
-        return Ok(response);
+        var transcriptionRequest = await _transcriptionService.Handler(file, request, cts.Token);
+        _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
+        return Ok(transcriptionRequest);
     }
 }
