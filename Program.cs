@@ -73,6 +73,7 @@ builder.Services.AddTransient<GlobalChecks>();
 builder.Services.AddTransient<GlobalDownloads>();
 builder.Services.AddTransient<ITranscriptionService, TranscriptionService>();
 builder.Services.AddTransient<IAudioConversionService, AudioConversionService>();
+builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("MySettings"));
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
