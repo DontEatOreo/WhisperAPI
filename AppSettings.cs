@@ -1,5 +1,6 @@
 namespace WhisperAPI;
 
-public record AppSettings(
-    string WhisperFolder
-);
+public class AppSettings
+{
+    public string WhisperFolder { get; init; }
+}
