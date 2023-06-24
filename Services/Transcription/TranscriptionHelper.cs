@@ -8,7 +8,7 @@ public class TranscriptionHelper
 {
     public async Task<PostResponseRoot> Transcribe(TranscriptionOptions options, CancellationToken token)
     {
-        using var whisperFactory = WhisperFactory.FromPath(options.ModelPath, libraryPath: Path.Combine(Environment.CurrentDirectory, "libwhisper.dylib"));
+        using var whisperFactory = WhisperFactory.FromPath(options.ModelPath);
         var builder = whisperFactory.CreateBuilder()
             .WithThreads(Environment.ProcessorCount);
 
