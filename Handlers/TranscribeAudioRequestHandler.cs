@@ -1,44 +1,42 @@
 using System.Globalization;
 using System.Text.Json;
+using MediatR;
 using Whisper.net.Ggml;
+using WhisperAPI.Commands;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
-using WhisperAPI.Services.Audio;
+using WhisperAPI.Requests;
 
-namespace WhisperAPI.Services.Transcription;
+namespace WhisperAPI.Handlers;
 
-public class TranscriptionService : ITranscriptionService
+public sealed class TranscribeAudioRequestHandler : IRequestHandler<TranscribeAudioRequest, JsonDocument>
 {
     private readonly Globals _globals;
     private readonly GlobalDownloads _downloads;
-    private readonly TranscriptionHelper _transcriptionHelper;
-    private readonly IAudioConversionService _audioConversionService;
     private readonly Serilog.ILogger _logger;
+    private readonly IMediator _mediator;
 
-    public TranscriptionService(Globals globals,
-        TranscriptionHelper transcriptionHelper,
-        IAudioConversionService audioConversionService,
-        Serilog.ILogger logger, GlobalDownloads downloads)
+    public TranscribeAudioRequestHandler(Globals globals,
+        Serilog.ILogger logger, GlobalDownloads downloads, IMediator mediator)
     {
         _globals = globals;
-        _transcriptionHelper = transcriptionHelper;
-        _audioConversionService = audioConversionService;
         _logger = logger;
         _downloads = downloads;
+        _mediator = mediator;
     }
 
-    public async Task<JsonDocument> Handler(IFormFile file, PostRequest request, CancellationToken token)
+    public async Task<JsonDocument> Handle(TranscribeAudioRequest request, CancellationToken token)
     {
         string? lang = null;
-        if (request.Lang is not null)
-            lang = ValidateLanguage(request.Lang);
-        var modelEnum = ValidateModel(request.Model);
+        if (request.Request.Lang is not null)
+            lang = ValidateLanguage(request.Request.Lang);
+        var modelEnum = ValidateModel(request.Request.Model);
 
-        var filePath = await SaveAudioFileAsync(file, token);
+        var filePath = await SaveAudioFileAsync(request.File, token);
 
         var filePathNoExt = $"{Path.GetFileNameWithoutExtension(filePath)}.wav";
         var wavFilePath = Path.Combine(_globals.AudioFilesFolder, filePathNoExt);
-        AudioOptions options = new(filePath, wavFilePath, lang, request.Translate, modelEnum);
+        AudioOptions options = new(filePath, wavFilePath, lang, request.Request.Translate, modelEnum);
 
         var result = await TranscribeAudio(options, token);
         var json = JsonSerializer.Serialize(result);
@@ -88,7 +86,7 @@ public class TranscriptionService : ITranscriptionService
         return filePath;
     }
 
-    public async Task<JsonDocument> TranscribeAudio(AudioOptions o, CancellationToken token)
+    private async Task<JsonDocument> TranscribeAudio(AudioOptions o, CancellationToken token)
     {
         var model = _globals.ModelFilePaths[o.WhisperModel];
 
@@ -102,12 +100,14 @@ public class TranscriptionService : ITranscriptionService
         try
         {
             token.ThrowIfCancellationRequested();
-            await _audioConversionService.ConvertToWavAsync(o.FileName, o.WavFile);
+            ConvertToWavCommand convert = new(o.FileName, o.WavFile);
+            await _mediator.Send(convert, token);
             token.ThrowIfCancellationRequested();
 
-            TranscriptionOptions options = new(o.WavFile, o.Language, o.Translate, model);
+            AudioOptions options = new(o.FileName, o.WavFile, o.Language, o.Translate, o.WhisperModel);
+            TranscribeAudioCommand audioCommand = new(options);
 
-            var transcribe = await _transcriptionHelper.Transcribe(options, token);
+            var transcribe = await _mediator.Send(audioCommand, token);
             var json = JsonSerializer.Serialize(transcribe);
             var jsonDocument = JsonDocument.Parse(json);
             token.ThrowIfCancellationRequested();

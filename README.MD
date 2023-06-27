@@ -3,7 +3,7 @@
 WhisperAPI is a wrapper for [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) a C++ implementation of the original OpenAI Whisper that greatly enhances its performance and speed.
 
 ## AppSettings
-You will need to create an `appsettings.json` file with the follow structure:
+You will need to edit the `appsettings.json` file to contain a full path to where you want to store models and audio files.
 ```json
 {
   "MySettings": {

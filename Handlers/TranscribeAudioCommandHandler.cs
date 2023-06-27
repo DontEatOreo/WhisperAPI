@@ -1,26 +1,36 @@
+using MediatR;
 using Whisper.net;
+using WhisperAPI.Commands;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 
-namespace WhisperAPI.Services.Transcription;
+namespace WhisperAPI.Handlers;
 
-public class TranscriptionHelper
+public sealed class TranscribeAudioCommandHandler : IRequestHandler<TranscribeAudioCommand, PostResponseRoot>
 {
-    public async Task<PostResponseRoot> Transcribe(TranscriptionOptions options, CancellationToken token)
+    private readonly Globals _globals;
+
+    public TranscribeAudioCommandHandler(Globals globals)
     {
-        using var whisperFactory = WhisperFactory.FromPath(options.ModelPath);
+        _globals = globals;
+    }
+
+    public async Task<PostResponseRoot> Handle(TranscribeAudioCommand request, CancellationToken token)
+    {
+        var modelPath = _globals.ModelFilePaths[request.Options.WhisperModel];
+        using var whisperFactory = WhisperFactory.FromPath(modelPath);
         var builder = whisperFactory.CreateBuilder()
             .WithThreads(Environment.ProcessorCount);
 
-        var notNull = options.Language is not null;
-        var withLanguage = notNull && options.Language is not "auto";
-        var autoLanguage = notNull && options.Language is "auto";
+        var notNull = request.Options.Language is not null;
+        var withLanguage = notNull && request.Options.Language is not "auto";
+        var autoLanguage = notNull && request.Options.Language is "auto";
         if (withLanguage)
-            builder = builder.WithLanguage(options.Language!);
+            builder = builder.WithLanguage(request.Options.Language!);
         if (autoLanguage)
             builder = builder.WithLanguageDetection();
 
-        if (options.Translate)
+        if (request.Options.Translate)
             builder = builder.WithTranslate();
         token.ThrowIfCancellationRequested();
 
@@ -35,12 +45,11 @@ public class TranscriptionHelper
             throw new FileProcessingException(error);
         }
 
-        await using var fileStream = File.OpenRead(options.AudioFile);
+        await using var fileStream = File.OpenRead(request.Options.WavFile);
 
         List<PostResponse> responses = new();
         await foreach (var result in processor.ProcessAsync(fileStream, token))
         {
-            token.ThrowIfCancellationRequested();
             PostResponse postResponse = new(
                 result.Start.TotalSeconds,
                 result.End.TotalSeconds,
