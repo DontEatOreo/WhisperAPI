@@ -19,6 +19,8 @@ public class Globals
             throw new DirectoryNotFoundException($"Whisper folder not found at {whisperFolder}");
 
         AudioFilesFolder = Path.Combine(whisperFolder, "AudioFiles");
+        if (!Directory.Exists(AudioFilesFolder))
+            Directory.CreateDirectory(AudioFilesFolder);
         ModelFilePaths = new Dictionary<GgmlType, string>
         {
             { GgmlType.Tiny, Path.Combine(whisperFolder, "ggml-tiny.bin") },

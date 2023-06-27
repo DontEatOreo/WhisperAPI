@@ -1,10 +1,11 @@
 using System.Threading.RateLimiting;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
-using WhisperAPI.Services.Transcription;
+using WhisperAPI.Requests;
 
 namespace WhisperAPI.Controllers;
 
@@ -13,16 +14,15 @@ namespace WhisperAPI.Controllers;
 public sealed class Transcribe : ControllerBase
 {
     private readonly IContentTypeProvider _provider;
-    private readonly ITranscriptionService _transcriptionService;
     private readonly TokenBucketRateLimiter _rateLimiter;
+    private readonly IMediator _mediator;
 
     public Transcribe(IContentTypeProvider provider,
-        ITranscriptionService transcriptionService,
-        TokenBucketRateLimiter rateLimiter)
+        TokenBucketRateLimiter rateLimiter, IMediator mediator)
     {
         _provider = provider;
-        _transcriptionService = transcriptionService;
         _rateLimiter = rateLimiter;
+        _mediator = mediator;
     }
 
     [EnableRateLimiting("token")]
@@ -47,9 +47,11 @@ public sealed class Transcribe : ControllerBase
         const string error = "File is not audio or video";
         if (!hasAudio && !hasVideo)
             throw new InvalidFileTypeException(error);
-
-        var transcriptionRequest = await _transcriptionService.Handler(file, request, cts.Token);
+        
+        TranscribeAudioRequest audioRequest = new(file, request);
+        var result = await _mediator.Send(audioRequest, cts.Token);
         _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
-        return Ok(transcriptionRequest);
+        
+        return Ok(result);
     }
 }

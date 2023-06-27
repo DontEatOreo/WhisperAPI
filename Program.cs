@@ -9,8 +9,6 @@ using Microsoft.Extensions.Options;
 using Serilog;
 using WhisperAPI;
 using WhisperAPI.Exceptions;
-using WhisperAPI.Services.Audio;
-using WhisperAPI.Services.Transcription;
 
 const string html = @"
 <!DOCTYPE html>
@@ -23,6 +21,7 @@ a {
 </style>
 </html>
 ";
+
 
 var builder = WebApplication.CreateBuilder();
 
@@ -66,14 +65,12 @@ builder.Services.Configure<TokenBucketRateLimiterOptions>(options =>
 });
 
 builder.Services.AddSingleton<IContentTypeProvider, FileExtensionContentTypeProvider>();
-builder.Services.AddSingleton<TranscriptionHelper>();
 builder.Services.AddSingleton<Globals>();
 
 builder.Services.AddTransient<GlobalChecks>();
 builder.Services.AddTransient<GlobalDownloads>();
-builder.Services.AddTransient<ITranscriptionService, TranscriptionService>();
-builder.Services.AddTransient<IAudioConversionService, AudioConversionService>();
 builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("MySettings"));
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
