@@ -26,7 +26,7 @@ public sealed class Transcribe : ControllerBase
     }
 
     [EnableRateLimiting("token")]
-    [HttpPost]
+    [HttpGet]
     public async Task<IActionResult> Post([FromForm] PostRequest request, [FromForm] IFormFile file)
     {
         // Return if no file is provided
