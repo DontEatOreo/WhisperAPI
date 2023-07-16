@@ -4,4 +4,4 @@ using WhisperAPI.Models;
 
 namespace WhisperAPI.Requests;
 
-public record TranscribeRequest(IFormFile File, PostRequest Request) : IRequest<JsonDocument>;
+public record TranscribeRequest(IFormFile File, Request Request) : IRequest<JsonDocument>;

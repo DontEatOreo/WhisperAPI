@@ -27,14 +27,11 @@ public sealed class Transcribe : ControllerBase
 
     [EnableRateLimiting("token")]
     [HttpGet]
-    public async Task<IActionResult> Post([FromForm] PostRequest request, [FromForm] IFormFile file)
+    public async Task<IActionResult> Post([FromForm] Request request, [FromForm] IFormFile file, CancellationToken token)
     {
         // Return if no file is provided
         if (file is null || file.Length is 0)
             throw new NoFileException("No file provided");
-
-        // Create a linked CancellationTokenSource
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
 
         // Get file extension
         var fileExtension = _provider.TryGetContentType(file.FileName, out var contentType)
@@ -49,7 +46,7 @@ public sealed class Transcribe : ControllerBase
             throw new InvalidFileTypeException(error);
         
         TranscribeRequest audioRequest = new(file, request);
-        var result = await _mediator.Send(audioRequest, cts.Token);
+        var result = await _mediator.Send(audioRequest, token);
         _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
         
         return Ok(result);

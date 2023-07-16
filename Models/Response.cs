@@ -2,11 +2,11 @@ using System.Text.Json.Serialization;
 
 namespace WhisperAPI.Models;
 
-public record PostResponseRoot(
-    [property: JsonPropertyName("data")] PostResponse[] Data,
+public record ResponseRoot(
+    [property: JsonPropertyName("data")] IEnumerable<Response> Data,
     [property: JsonPropertyName("count")] int Count);
 
-public record PostResponse(
+public record Response(
     [property: JsonPropertyName("start")] double Start,
     [property: JsonPropertyName("end")] double End,
     [property: JsonPropertyName("text")] string Text,

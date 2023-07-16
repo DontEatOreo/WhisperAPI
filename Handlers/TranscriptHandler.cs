@@ -6,7 +6,7 @@ using WhisperAPI.Queries;
 
 namespace WhisperAPI.Handlers;
 
-public sealed class TranscriptHandler : IRequestHandler<TranscriptQuery, PostResponseRoot>
+public sealed class TranscriptHandler : IRequestHandler<TranscriptQuery, ResponseRoot>
 {
     private readonly Globals _globals;
 
@@ -15,7 +15,7 @@ public sealed class TranscriptHandler : IRequestHandler<TranscriptQuery, PostRes
         _globals = globals;
     }
 
-    public async Task<PostResponseRoot> Handle(TranscriptQuery request, CancellationToken token)
+    public async Task<ResponseRoot> Handle(TranscriptQuery request, CancellationToken token)
     {
         var modelPath = _globals.ModelFilePaths[request.Options.WhisperModel];
         using var whisperFactory = WhisperFactory.FromPath(modelPath);
@@ -47,18 +47,18 @@ public sealed class TranscriptHandler : IRequestHandler<TranscriptQuery, PostRes
 
         await using var fileStream = File.OpenRead(request.Options.WavFile);
 
-        List<PostResponse> responses = new();
+        List<Response> responses = new();
         await foreach (var result in processor.ProcessAsync(fileStream, token))
         {
-            PostResponse postResponse = new(
+            Response response = new(
                 result.Start.TotalSeconds,
                 result.End.TotalSeconds,
                 result.Text.Trim(),
                 result.Probability);
-            responses.Add(postResponse);
+            responses.Add(response);
         }
 
-        PostResponseRoot root = new(responses.ToArray(), responses.Count);
+        ResponseRoot root = new(responses.ToArray(), responses.Count);
         return root;
     }
 }
