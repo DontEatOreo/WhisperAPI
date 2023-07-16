@@ -6,12 +6,12 @@ WhisperAPI is a wrapper for [Whisper.cpp](https://github.com/ggerganov/whisper.c
 You will need to edit the `appsettings.json` file to contain a full path to where you want to store models and audio files.
 ```json
 {
-  "MySettings": {
-    "WhisperFolder": ""
+  "WhisperSettings": {
+    "Folder": "/path/to/whisper/folder"
   }
 }
 ```
-In the `WhisperFolder` property you will need to provide a full path to where you want to store models and audio files.
+In the `Folder` property you will need to provide a full path to where you want to store models and audio files.
 
 ## Note
 Translation increase the processing time, sometimes 2x the time! So avoid translation for long videos or audios.
@@ -65,13 +65,11 @@ The response will be a JSON payload with the following format:
       "start": 0,
       "end": 2.30,
       "text": "Hello",
-      "probability": 0
     },
     {
       "start": 2.30,
       "end": 3.40,
       "text": "World",
-      "probability": 0
     }
   ],
   "count": 11
