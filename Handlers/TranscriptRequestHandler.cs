@@ -2,21 +2,21 @@ using System.Globalization;
 using System.Text.Json;
 using MediatR;
 using Whisper.net.Ggml;
-using WhisperAPI.Commands;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
+using WhisperAPI.Queries;
 using WhisperAPI.Requests;
 
 namespace WhisperAPI.Handlers;
 
-public sealed class TranscribeAudioRequestHandler : IRequestHandler<TranscribeAudioRequest, JsonDocument>
+public sealed class TranscriptRequestHandler : IRequestHandler<TranscribeRequest, JsonDocument>
 {
     private readonly Globals _globals;
     private readonly GlobalDownloads _downloads;
     private readonly Serilog.ILogger _logger;
     private readonly IMediator _mediator;
 
-    public TranscribeAudioRequestHandler(Globals globals,
+    public TranscriptRequestHandler(Globals globals,
         Serilog.ILogger logger, GlobalDownloads downloads, IMediator mediator)
     {
         _globals = globals;
@@ -25,7 +25,7 @@ public sealed class TranscribeAudioRequestHandler : IRequestHandler<TranscribeAu
         _mediator = mediator;
     }
 
-    public async Task<JsonDocument> Handle(TranscribeAudioRequest request, CancellationToken token)
+    public async Task<JsonDocument> Handle(TranscribeRequest request, CancellationToken token)
     {
         string? lang = null;
         if (request.Request.Lang is not null)
@@ -100,12 +100,12 @@ public sealed class TranscribeAudioRequestHandler : IRequestHandler<TranscribeAu
         try
         {
             token.ThrowIfCancellationRequested();
-            ConvertToWavCommand convert = new(o.FileName, o.WavFile);
+            WavConverterQuery convert = new(o.FileName, o.WavFile);
             await _mediator.Send(convert, token);
             token.ThrowIfCancellationRequested();
 
             AudioOptions options = new(o.FileName, o.WavFile, o.Language, o.Translate, o.WhisperModel);
-            TranscribeAudioCommand audioCommand = new(options);
+            TranscriptQuery audioCommand = new(options);
 
             var transcribe = await _mediator.Send(audioCommand, token);
             var json = JsonSerializer.Serialize(transcribe);

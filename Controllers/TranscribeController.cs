@@ -48,7 +48,7 @@ public sealed class Transcribe : ControllerBase
         if (!hasAudio && !hasVideo)
             throw new InvalidFileTypeException(error);
         
-        TranscribeAudioRequest audioRequest = new(file, request);
+        TranscribeRequest audioRequest = new(file, request);
         var result = await _mediator.Send(audioRequest, cts.Token);
         _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
         

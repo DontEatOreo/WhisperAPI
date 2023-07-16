@@ -1,21 +1,21 @@
 using MediatR;
 using Whisper.net;
-using WhisperAPI.Commands;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
+using WhisperAPI.Queries;
 
 namespace WhisperAPI.Handlers;
 
-public sealed class TranscribeAudioCommandHandler : IRequestHandler<TranscribeAudioCommand, PostResponseRoot>
+public sealed class TranscriptHandler : IRequestHandler<TranscriptQuery, PostResponseRoot>
 {
     private readonly Globals _globals;
 
-    public TranscribeAudioCommandHandler(Globals globals)
+    public TranscriptHandler(Globals globals)
     {
         _globals = globals;
     }
 
-    public async Task<PostResponseRoot> Handle(TranscribeAudioCommand request, CancellationToken token)
+    public async Task<PostResponseRoot> Handle(TranscriptQuery request, CancellationToken token)
     {
         var modelPath = _globals.ModelFilePaths[request.Options.WhisperModel];
         using var whisperFactory = WhisperFactory.FromPath(modelPath);

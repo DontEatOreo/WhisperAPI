@@ -1,20 +1,20 @@
 using System.Diagnostics;
 using MediatR;
-using WhisperAPI.Commands;
 using WhisperAPI.Exceptions;
+using WhisperAPI.Queries;
 
 namespace WhisperAPI.Handlers;
 
-public sealed class ConvertToWavCommandHandler : IRequestHandler<ConvertToWavCommand>
+public sealed class WavConverterHandler : IRequestHandler<WavConverterQuery>
 {
     private readonly Serilog.ILogger _logger;
 
-    public ConvertToWavCommandHandler(Serilog.ILogger logger)
+    public WavConverterHandler(Serilog.ILogger logger)
     {
         _logger = logger;
     }
 
-    public async Task Handle(ConvertToWavCommand request, CancellationToken cancellationToken)
+    public async Task Handle(WavConverterQuery request, CancellationToken cancellationToken)
     {
         string[] ffmpegArgs =
         {
