@@ -1,4 +1,6 @@
 .idea/
 bin/
 obj/
-.DS_STORE
+.DS_Store
+appsettings.*.json
+!appsettings.json
