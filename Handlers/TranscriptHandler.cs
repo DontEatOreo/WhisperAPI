@@ -53,8 +53,7 @@ public sealed class TranscriptHandler : IRequestHandler<TranscriptQuery, Respons
             Response response = new(
                 result.Start.TotalSeconds,
                 result.End.TotalSeconds,
-                result.Text.Trim(),
-                result.Probability);
+                result.Text.Trim());
             responses.Add(response);
         }
 

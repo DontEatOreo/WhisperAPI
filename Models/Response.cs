@@ -9,6 +9,5 @@ public record ResponseRoot(
 public record Response(
     [property: JsonPropertyName("start")] double Start,
     [property: JsonPropertyName("end")] double End,
-    [property: JsonPropertyName("text")] string Text,
-    [property: JsonPropertyName("probability")] float Probability
+    [property: JsonPropertyName("text")] string Text
 );
