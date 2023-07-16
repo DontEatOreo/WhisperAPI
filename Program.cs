@@ -69,7 +69,7 @@ builder.Services.AddSingleton<Globals>();
 
 builder.Services.AddTransient<GlobalChecks>();
 builder.Services.AddTransient<GlobalDownloads>();
-builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("MySettings"));
+builder.Services.Configure<WhisperSettings>(builder.Configuration.GetSection("WhisperSettings"));
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
 
 builder.Host.UseSerilog((context, services, configuration) => configuration

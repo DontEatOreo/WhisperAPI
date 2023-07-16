@@ -12,9 +12,15 @@ public class Globals
     /// </summary>
     public readonly Dictionary<GgmlType, string> ModelFilePaths;
 
-    public Globals(IOptions<AppSettings> options)
+    public Globals(IOptions<WhisperSettings> options)
     {
-        var whisperFolder = Path.GetFullPath(options.Value.WhisperFolder);
+        if (options.Value.Folder is null)
+        {
+            const string errorMessage = "Whisper folder not found. Please set the Whisper folder in appsettings.json";
+            throw new DirectoryNotFoundException(errorMessage);
+        }
+        
+        var whisperFolder = Path.GetFullPath(options.Value.Folder);
         if (!Directory.Exists(whisperFolder))
             throw new DirectoryNotFoundException($"Whisper folder not found at {whisperFolder}");
 
