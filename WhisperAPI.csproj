@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>WhisperAPI</RootNamespace>
-    <Version>3.1.0</Version>
+    <Version>3.2.0</Version>
     <Authors>DontEatOreo</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/DontEatOreo/WhisperAPI</RepositoryUrl>
@@ -19,7 +19,5 @@
     <PackageReference Include="Whisper.net.Runtime" Version="1.4.6" />
     <PackageReference Include="Xabe.FFmpeg" Version="5.2.6" />
   </ItemGroup>
-
-
-
+  
 </Project>
