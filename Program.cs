@@ -10,6 +10,7 @@ using Serilog;
 using WhisperAPI;
 using WhisperAPI.Exceptions;
 
+// Define an HTML string to be used as the default response for the root endpoint
 const string html = @"
 <!DOCTYPE html>
 <html lang=""en"">
@@ -22,24 +23,22 @@ a {
 </html>
 ";
 
-
+// Create a new web application builder
 var builder = WebApplication.CreateBuilder();
 
+// Add services to the builder
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-builder.Services.AddHttpClient<ModelsClient>();
-builder.Services.AddHttpClient<WhisperClient>();
-
 builder.Services.Configure<KestrelServerOptions>(options =>
 {
     options.Limits.MaxRequestBodySize = long.MaxValue;
 });
 
+// Configure rate limiting options
 const string tokenPolicy = "token";
 RateLimitOptions tokenBucketOptions = new();
 builder.Configuration.GetSection(RateLimitOptions.RateLimit).Bind(tokenBucketOptions);
-builder.Services.AddRateLimiter(_ => _
+builder.Services.AddRateLimiter(l => l
     .AddTokenBucketLimiter(policyName: tokenPolicy, options =>
     {
         options.TokenLimit = tokenBucketOptions.TokenLimit;
@@ -64,31 +63,30 @@ builder.Services.Configure<TokenBucketRateLimiterOptions>(options =>
     options.AutoReplenishment = tokenBucketOptions.AutoReplenishment;
 });
 
-builder.Services.AddSingleton<IContentTypeProvider, FileExtensionContentTypeProvider>();
+// Add services to the builder
 builder.Services.AddSingleton<Globals>();
-
-builder.Services.AddTransient<GlobalChecks>();
-builder.Services.AddTransient<GlobalDownloads>();
+builder.Services.AddTransient<FileExtensionContentTypeProvider>();
 builder.Services.Configure<WhisperSettings>(builder.Configuration.GetSection("WhisperSettings"));
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Program>());
 
+// Configure logging
 builder.Host.UseSerilog((context, services, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .ReadFrom.Services(services)
     .Enrich.FromLogContext()
     .WriteTo.Console());
 
+// Configure HTTPS redirection
 builder.Services.AddHttpsRedirection(options =>
 {
     options.RedirectStatusCode = (int)HttpStatusCode.PermanentRedirect;
     options.HttpsPort = 443;
 });
 
+// Build the application
 var app = builder.Build();
 
-var checks = app.Services.GetRequiredService<GlobalChecks>();
-await checks.FFmpeg();
-
+// Configure middleware and endpoints
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
@@ -97,6 +95,7 @@ app.UseRateLimiter();
 app.MapGet("/", () => Results.Extensions.Html(html));
 app.Run();
 
+// Define extension methods for IResult
 internal static class ResultsExtensions
 {
     public static IResult Html(this IResultExtensions resultExtensions, string html)
@@ -106,6 +105,7 @@ internal static class ResultsExtensions
     }
 }
 
+// Define a custom IResult implementation for returning HTML responses
 internal class HtmlResult : IResult
 {
     private readonly string _html;

@@ -2,10 +2,8 @@ using System.Threading.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
-using WhisperAPI.Models;
-using WhisperAPI.Requests;
+using WhisperAPI.Queries;
 
 namespace WhisperAPI.Controllers;
 
@@ -13,42 +11,43 @@ namespace WhisperAPI.Controllers;
 [Route("[controller]")]
 public sealed class Transcribe : ControllerBase
 {
-    private readonly IContentTypeProvider _provider;
     private readonly TokenBucketRateLimiter _rateLimiter;
     private readonly IMediator _mediator;
 
-    public Transcribe(IContentTypeProvider provider,
-        TokenBucketRateLimiter rateLimiter, IMediator mediator)
+    public Transcribe(TokenBucketRateLimiter rateLimiter, IMediator mediator)
     {
-        _provider = provider;
         _rateLimiter = rateLimiter;
         _mediator = mediator;
     }
 
+    /// <summary>
+    /// Retrieves a transcript of the audio or video file provided in the request.
+    /// </summary>
+    /// <param name="request">The transcript query parameters.</param>
+    /// <param name="file">The audio or video file to transcribe.</param>
+    /// <param name="token">The cancellation token.</param>
+    /// <returns>The transcript of the audio or video file.</returns>
     [EnableRateLimiting("token")]
     [HttpGet]
-    public async Task<IActionResult> Post([FromForm] Request request, [FromForm] IFormFile file, CancellationToken token)
+    public async Task<IActionResult> Get([FromForm] TranscriptQuery request, [FromForm] IFormFile file, CancellationToken token)
     {
         // Return if no file is provided
         if (file is null || file.Length is 0)
             throw new NoFileException("No file provided");
-
-        // Get file extension
-        var fileExtension = _provider.TryGetContentType(file.FileName, out var contentType)
-            ? contentType
-            : file.ContentType;
-
-        // Return if file is not audio or video
-        var hasAudio = fileExtension.StartsWith("audio/");
-        var hasVideo = fileExtension.StartsWith("video/");
-        const string error = "File is not audio or video";
-        if (!hasAudio && !hasVideo)
-            throw new InvalidFileTypeException(error);
         
-        TranscribeRequest audioRequest = new(file, request);
-        var result = await _mediator.Send(audioRequest, token);
+        if (!file.ContentType.StartsWith("audio/") && !file.ContentType.StartsWith("video/"))
+            throw new InvalidFileTypeException("Invalid file type");
+        
+        WavConvertQuery wavRequest = new(file);
+        var (wavFile, policy) = await _mediator.Send(wavRequest, token);
+        
+        FormDataQuery formDataQuery = new(wavFile, request);
+        var whisperOptions = await _mediator.Send(formDataQuery, token);
+        
+        var result = await _mediator.Send(whisperOptions, token);
         _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
         
+        HttpContext.Response.OnCompleted(policy);
         return Ok(result);
     }
 }
