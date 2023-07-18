@@ -1,57 +1,64 @@
-using System.Diagnostics;
 using MediatR;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Queries;
+using Xabe.FFmpeg;
 
 namespace WhisperAPI.Handlers;
 
-public sealed class WavConverterHandler : IRequestHandler<WavConverterQuery>
+public sealed class WavConverterHandler : IRequestHandler<WavConvertQuery, (string, Func<Task>)>
 {
-    private readonly Serilog.ILogger _logger;
+    private readonly Globals _globals;
 
-    public WavConverterHandler(Serilog.ILogger logger)
+    public WavConverterHandler(Globals globals)
     {
-        _logger = logger;
+        _globals = globals;
     }
 
-    public async Task Handle(WavConverterQuery request, CancellationToken cancellationToken)
+    private const string Error = "Could not convert file to wav";
+    
+    public async Task<(string, Func<Task>)> Handle(WavConvertQuery request, CancellationToken token)
     {
-        string[] ffmpegArgs =
+        var audioFolder = _globals.AudioFilesFolder;
+        var audioFolderExists = Directory.Exists(audioFolder);
+        if (!audioFolderExists) 
+            Directory.CreateDirectory(audioFolder);
+
+        var extension = request.Stream.ContentType[request.Stream.ContentType.IndexOf("/",
+            StringComparison.Ordinal)..][1..];
+        extension = extension.Insert(0, ".");
+
+        var reqFle = Path.Combine(audioFolder, $"{Guid.NewGuid().ToString()[..4]}{extension}");
+        var wavFile = Path.Combine(audioFolder, $"{Guid.NewGuid().ToString()[..4]}.wav");
+        
+        var task = () =>
         {
-            "-i",
-            request.Input,
-            "-ar",
-            "16000",
-            "-ac",
-            "1",
-            "-c:a",
-            "pcm_s16le",
-            request.Output
+            File.Delete(reqFle);
+            File.Delete(wavFile);
+            return Task.CompletedTask;
         };
         
-        ProcessStartInfo startInfo = new()
-        {
-            FileName = "ffmpeg",
-            Arguments = string.Join(" ", ffmpegArgs),
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            UseShellExecute = false
-        };
+        await request.Stream.CopyToAsync(File.Create(reqFle), token);
+        
+        var mediaInfo = await FFmpeg.GetMediaInfo(reqFle, token);
+        var audioStream = mediaInfo.AudioStreams.FirstOrDefault();
+        if (audioStream is null)
+            throw new FileProcessingException(Error);
+        audioStream.SetCodec(AudioCodec.pcm_s16le);
+        audioStream.SetChannels(1);
+
+        var conversion = FFmpeg.Conversions.New()
+            .AddStream(audioStream)
+            .AddParameter("-ar 16000")
+            .SetOutput(wavFile);
         try
         {
-            using Process process = new() { StartInfo = startInfo };
-            process.Start();
-            await Task.WhenAll(
-                process.StandardOutput.ReadToEndAsync(cancellationToken),
-                process.StandardError.ReadToEndAsync(cancellationToken));
-            await process.WaitForExitAsync(cancellationToken);
+            await conversion.Start(token);
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            const string error = "Could not convert file to wav";
-            _logger.Error(e, "[{Message}] Could not convert file to wav", e.Message);
-            throw new FileProcessingException(error);
+            throw new FileProcessingException(Error);
         }
+
+        return (wavFile, task);
     }
 }

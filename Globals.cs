@@ -27,6 +27,7 @@ public class Globals
         AudioFilesFolder = Path.Combine(whisperFolder, "AudioFiles");
         if (!Directory.Exists(AudioFilesFolder))
             Directory.CreateDirectory(AudioFilesFolder);
+        
         ModelFilePaths = new Dictionary<GgmlType, string>
         {
             { GgmlType.Tiny, Path.Combine(whisperFolder, "ggml-tiny.bin") },

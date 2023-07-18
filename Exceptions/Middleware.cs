@@ -23,30 +23,25 @@ public class Middleware
         }
         catch (Exception e)
         {
-            await HandleExceptionAsync(context, e);
+            context.Response.ContentType = "application/json";
+            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+
+            context.Response.StatusCode = e switch
+            {
+                InvalidFileTypeException => (int)HttpStatusCode.UnsupportedMediaType,
+                InvalidLanguageException => (int)HttpStatusCode.BadRequest,
+                InvalidModelException => (int)HttpStatusCode.UnprocessableEntity,
+                NoFileException => (int)HttpStatusCode.NotFound,
+                FileProcessingException => (int)HttpStatusCode.UnprocessableEntity,
+                _ => (int)HttpStatusCode.InternalServerError
+            };
+
+            _ = _rateLimiter.TryReplenish();
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new
+            {
+                error = e.Message
+            }));
         }
-    }
-
-    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
-    {
-        context.Response.ContentType = "application/json";
-        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-
-        context.Response.StatusCode = exception switch
-        {
-            InvalidFileTypeException => (int)HttpStatusCode.UnsupportedMediaType,
-            InvalidLanguageException => (int)HttpStatusCode.BadRequest,
-            InvalidModelException => (int)HttpStatusCode.UnprocessableEntity,
-            NoFileException => (int)HttpStatusCode.NotFound,
-            FileProcessingException => (int)HttpStatusCode.UnprocessableEntity,
-            _ => throw new ArgumentOutOfRangeException(nameof(exception), exception, null)
-        };
-
-        _ = _rateLimiter.TryReplenish();
-
-        await context.Response.WriteAsync(JsonSerializer.Serialize(new
-        {
-            error = exception.Message
-        }));
     }
 }

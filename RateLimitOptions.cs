@@ -1,7 +1,13 @@
 namespace WhisperAPI;
 
+/// <summary>
+/// Represents the options for rate limiting.
+/// </summary>
 public class RateLimitOptions
 {
+    /// <summary>
+    /// The name of the rate limit policy.
+    /// </summary>
     public const string RateLimit = "RateLimit";
 
     public TimeSpan ReplenishmentPeriod = TimeSpan.FromSeconds(10);
