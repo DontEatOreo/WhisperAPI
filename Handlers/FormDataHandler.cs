@@ -1,4 +1,5 @@
 using System.Globalization;
+using JetBrains.Annotations;
 using MediatR;
 using Whisper.net.Ggml;
 using WhisperAPI.Exceptions;
@@ -7,6 +8,7 @@ using WhisperAPI.Queries;
 
 namespace WhisperAPI.Handlers;
 
+[UsedImplicitly]
 public sealed class FormDataHandler : IRequestHandler<FormDataQuery, WhisperOptions>
 {
     private const string InvalidLanguageError = "Invalid language";
