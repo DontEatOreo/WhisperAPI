@@ -1,5 +1,9 @@
 # WhisperAPI
 
+[![GitHub license](https://img.shields.io/github/license/DontEatOreo/WhisperAPI)](https://github.com/DontEatOreo/WhisperAPI/blob/master/LICENSE.txt)
+[![GitHub release](https://img.shields.io/github/release/DontEatOreo/WhisperAPI)](https://github.com/DontEatOreo/WhisperAPI/releases)
+[![GitHub issues](https://img.shields.io/github/issues/DontEatOreo/WhisperAPI)](https://github.com/DontEatOreo/WhisperAPI/issues)
+
 WhisperAPI is a wrapper for [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) a C++ implementation of the original OpenAI Whisper that greatly enhances its performance and speed.
 
 ## AppSettings
@@ -31,8 +35,8 @@ Translation increase the processing time, sometimes 2x the time! So avoid transl
 
 ### Notes
 
-- You can use any language codes supported by OpenAI Whisper (You can also use language names like English, German, Japanese, etc or language codes like en, de, ja, etc)
-- If you're unsure or don't know ahead of time which country code you need you can omit lang property.
+- You can use any language codes supported by OpenAI Whisper
+- If you're unsure or don't know ahead of time which language code you need you can omit lang property.
 - Supported Models are: Tiny, Base, Medium and Large.
 
 ## Usage
@@ -41,7 +45,7 @@ To use WhisperAPI, you will need to send a POST multipart/form-data to the ``/tr
 
 ```json
 {
-    "lang": "en",
+    "lang": "ja",
     "model": "base",
     "translate": true 
 }
@@ -57,12 +61,11 @@ And with the file as a multipart/form-data field named ``file``.
 Here is a curl example of the request:
 
 ```bash
-curl -X POST \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@/path/to/file.mp3" \
-  -F "lang=en" \
-  -F "model=base" \
-  https://localhost:5001/transcribe
+curl --location --request GET 'https://localhost:5001/transcribe' \
+--form 'file=@"/path/to/file/"' \
+--form 'lang="ja"' \
+--form 'model="base"' \
+--form 'translate="true"'
 ```
 
 The response will be a JSON payload with the following format:
@@ -72,16 +75,16 @@ The response will be a JSON payload with the following format:
   "data": [
     {
       "start": 0,
-      "end": 2.30,
-      "text": "Hello"
+      "end": 3,
+      "text": "Hello!"
     },
     {
-      "start": 2.30,
-      "end": 3.40,
-      "text": "World"
+      "start": 3,
+      "end": 6,
+      "text": "World!"
     }
   ],
-  "count": 11
+  "count": 2
 }
 ```
 
@@ -89,7 +92,7 @@ On failure (e.g: invalid file format) the response JSON payload will be:
 
 ```json
 {
-  "error": "Error Message"
+  "error": "Error message"
 }
 ```
 
