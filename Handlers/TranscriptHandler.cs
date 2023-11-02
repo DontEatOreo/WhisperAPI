@@ -16,7 +16,7 @@ public sealed class TranscriptHandler : IRequestHandler<WhisperOptions, JsonResp
     {
         _globals = globals;
     }
-    
+
     private const string ErrorProcessing = "Couldn't process the file";
     private const string MissingFile = "File not found";
 
@@ -28,17 +28,29 @@ public sealed class TranscriptHandler : IRequestHandler<WhisperOptions, JsonResp
     /// <returns>A JSON response containing the processed transcript data.</returns>
     public async Task<JsonResponse> Handle(WhisperOptions request, CancellationToken token)
     {
-        var modelPath = _globals.ModelFilePaths[request.WhisperModel];
+        var modelName = request.WhisperModel.ToString().ToLower();
+        var modelPath = Path.Combine(_globals.WhisperFolder, $"{modelName}.bin");
         var modelExists = File.Exists(modelPath);
-        if (!modelExists)
+
+        if (modelExists is false)
         {
-            var stream = await WhisperGgmlDownloader.GetGgmlModelAsync(request.WhisperModel, QuantizationType.Q8_0, token);
-            await using var modelStream = File.Create(modelPath);
+            await using var stream = await WhisperGgmlDownloader.GetGgmlModelAsync(request.WhisperModel,
+                QuantizationType.NoQuantization, token);
+            await using var modelStream = File.Create(Path.Combine(_globals.WhisperFolder, $"{modelName}.bin"));
+
             await stream.CopyToAsync(modelStream, token);
-            await modelStream.FlushAsync(token);
         }
 
-        using var whisperFactory = WhisperFactory.FromPath(modelPath);
+        WhisperFactory whisperFactory;
+        try
+        {
+            whisperFactory = WhisperFactory.FromPath(modelPath);
+        }
+        catch (Exception)
+        {
+            throw new FileProcessingException(ErrorProcessing);
+        }
+
         var builder = whisperFactory.CreateBuilder()
             .WithThreads(Environment.ProcessorCount);
 
