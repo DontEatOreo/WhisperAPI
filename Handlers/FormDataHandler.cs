@@ -14,44 +14,49 @@ public sealed class FormDataHandler : IRequestHandler<FormDataQuery, WhisperOpti
     private const string InvalidLanguageError = "Invalid language";
     private const string InvalidModelError = "Invalid model";
 
-    /// <summary>
-    /// Handles the FormDataQuery request by validating the language and model, and returning a WhisperOptions object.
-    /// </summary>
-    /// <param name="request">The FormDataQuery request.</param>
-    /// <param name="token">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains the WhisperOptions object.</returns>
     public Task<WhisperOptions> Handle(FormDataQuery request, CancellationToken token)
     {
         string? lang = null;
         if (request.Query.Lang is not null)
             lang = ValidateLanguage(request.Query.Lang);
         var modelEnum = ValidateModel(request.Query.Model.ToLower());
-        
+
         WhisperOptions whisperOptions = new(request.File, lang, request.Query.Translate, modelEnum);
         return Task.FromResult(whisperOptions);
     }
-    
+
     /// <summary>
-    /// Validates the provided language string by checking if it is a valid CultureInfo name or "auto".
+    /// Validates the given language string and returns its two-letter ISO language name if it is a valid language.
     /// </summary>
     /// <param name="lang">The language string to validate.</param>
-    /// <returns>The validated language string.</returns>
-    /// <exception cref="InvalidLanguageException">Thrown when the provided language string is not a valid CultureInfo name or "auto".</exception>
+    /// <returns>The two-letter ISO language name of the validated language.</returns>
+    /// <exception cref="InvalidLanguageException">Thrown when the given language string is not a valid language.</exception>
     private static string ValidateLanguage(string lang)
     {
         lang = lang.Trim().ToLower();
         var isAuto = lang is "auto";
         if (isAuto)
             return lang;
-        
-        var hasLang = CultureInfo.GetCultures(CultureTypes.NeutralCultures)
-            .Any(culture => culture.EnglishName == lang
-                            || culture.NativeName == lang 
-                            || culture.TwoLetterISOLanguageName == lang
-                            || culture.ThreeLetterWindowsLanguageName == lang);
-        if (hasLang)
-            return lang;
-        
+
+        /*
+         * - `EnglishName`: The culture's name in English.
+         * - `DisplayName`: The culture's name in the current UI culture.
+         * - `NativeName`: The culture's name in its own language.
+         * - `TwoLetterISOLanguageName`: The culture's two-letter ISO 639-1 language name.
+         * - `ThreeLetterISOLanguageName`: The culture's three-letter ISO 639-2 language name.
+         */
+
+        var iso = CultureInfo.GetCultures(CultureTypes.AllCultures)
+            .FirstOrDefault(culture => culture.EnglishName.ToLower() == lang ||
+                                       culture.DisplayName.ToLower() == lang ||
+                                       culture.NativeName.ToLower() == lang ||
+                                       culture.TwoLetterISOLanguageName.ToLower() == lang ||
+                                       culture.ThreeLetterISOLanguageName.ToLower() == lang)
+            ?.TwoLetterISOLanguageName;
+
+        if (iso is not null)
+            return iso;
+
         throw new InvalidLanguageException(InvalidLanguageError);
     }
 
