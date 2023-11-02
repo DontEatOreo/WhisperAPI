@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Queries;
 
@@ -13,11 +14,13 @@ public sealed class Transcribe : ControllerBase
 {
     private readonly TokenBucketRateLimiter _rateLimiter;
     private readonly IMediator _mediator;
+    private readonly FileExtensionContentTypeProvider _typeProvider;
 
-    public Transcribe(TokenBucketRateLimiter rateLimiter, IMediator mediator)
+    public Transcribe(TokenBucketRateLimiter rateLimiter, IMediator mediator, FileExtensionContentTypeProvider typeProvider)
     {
         _rateLimiter = rateLimiter;
         _mediator = mediator;
+        _typeProvider = typeProvider;
     }
 
     /// <summary>
@@ -34,19 +37,21 @@ public sealed class Transcribe : ControllerBase
         // Return if no file is provided
         if (file is null || file.Length is 0)
             throw new NoFileException("No file provided");
-        
-        if (!file.ContentType.StartsWith("audio/") && !file.ContentType.StartsWith("video/"))
+
+        var isAudio = _typeProvider.TryGetContentType(file.FileName, out var contentType) && contentType.StartsWith("audio/");
+        var isVideo = _typeProvider.TryGetContentType(file.FileName, out contentType) && contentType.StartsWith("video/");
+        if (!isAudio && !isVideo)
             throw new InvalidFileTypeException("Invalid file type");
-        
+
         WavConvertQuery wavRequest = new(file);
         var (wavFile, policy) = await _mediator.Send(wavRequest, token);
-        
+
         FormDataQuery formDataQuery = new(wavFile, request);
         var whisperOptions = await _mediator.Send(formDataQuery, token);
-        
+
         var result = await _mediator.Send(whisperOptions, token);
         _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
-        
+
         HttpContext.Response.OnCompleted(policy);
         return Ok(result);
     }
