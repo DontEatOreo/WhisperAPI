@@ -11,17 +11,17 @@ using WhisperAPI;
 using WhisperAPI.Exceptions;
 
 // Define an HTML string to be used as the default response for the root endpoint
-const string html = @"
+const string html = """
 <!DOCTYPE html>
-<html lang=""en"">
-<a href=""https://github.com/DontEatOreo/WhisperAPI"" target=""_blank"">Docs</a>
+<html lang="en">
+<a href="https://github.com/DontEatOreo/WhisperAPI" target="_blank">Docs</a>
 <style>
 a {
     font-size: 100px;
 }
 </style>
 </html>
-";
+""";
 
 // Create a new web application builder
 var builder = WebApplication.CreateBuilder();
@@ -41,12 +41,12 @@ builder.Configuration.GetSection(RateLimitOptions.RateLimit).Bind(tokenBucketOpt
 builder.Services.AddRateLimiter(l => l
     .AddTokenBucketLimiter(policyName: tokenPolicy, options =>
     {
-        options.TokenLimit = tokenBucketOptions.TokenLimit;
+        options.TokenLimit = RateLimitOptions.TokenLimit;
         options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        options.QueueLimit = tokenBucketOptions.QueueLimit;
+        options.QueueLimit = RateLimitOptions.QueueLimit;
         options.ReplenishmentPeriod = tokenBucketOptions.ReplenishmentPeriod;
-        options.TokensPerPeriod = tokenBucketOptions.TokensPerPeriod;
-        options.AutoReplenishment = tokenBucketOptions.AutoReplenishment;
+        options.TokensPerPeriod = RateLimitOptions.TokensPerPeriod;
+        options.AutoReplenishment = RateLimitOptions.AutoReplenishment;
     })
 );
 builder.Services.AddSingleton<TokenBucketRateLimiter>(sp =>
@@ -56,11 +56,11 @@ builder.Services.AddSingleton<TokenBucketRateLimiter>(sp =>
 });
 builder.Services.Configure<TokenBucketRateLimiterOptions>(options =>
 {
-    options.TokenLimit = tokenBucketOptions.TokenLimit;
-    options.QueueLimit = tokenBucketOptions.QueueLimit;
-    options.TokensPerPeriod = tokenBucketOptions.TokensPerPeriod;
+    options.TokenLimit = RateLimitOptions.TokenLimit;
+    options.QueueLimit = RateLimitOptions.QueueLimit;
+    options.TokensPerPeriod = RateLimitOptions.TokensPerPeriod;
     options.ReplenishmentPeriod = tokenBucketOptions.ReplenishmentPeriod;
-    options.AutoReplenishment = tokenBucketOptions.AutoReplenishment;
+    options.AutoReplenishment = RateLimitOptions.AutoReplenishment;
 });
 
 // Add services to the builder

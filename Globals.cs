@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Options;
 using Serilog;
-using Whisper.net.Ggml;
 
 namespace WhisperAPI;
 
