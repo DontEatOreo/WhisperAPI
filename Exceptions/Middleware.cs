@@ -4,22 +4,13 @@ using System.Threading.RateLimiting;
 
 namespace WhisperAPI.Exceptions;
 
-public class Middleware
+public class Middleware(RequestDelegate next, ReplenishingRateLimiter rateLimiter)
 {
-    private readonly RequestDelegate _next;
-    private readonly TokenBucketRateLimiter _rateLimiter;
-
-    public Middleware(RequestDelegate next, TokenBucketRateLimiter rateLimiter)
-    {
-        _next = next;
-        _rateLimiter = rateLimiter;
-    }
-
     public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await _next.Invoke(context);
+            await next.Invoke(context);
         }
         catch (Exception e)
         {
@@ -36,7 +27,7 @@ public class Middleware
                 _ => (int)HttpStatusCode.InternalServerError
             };
 
-            _ = _rateLimiter.TryReplenish();
+            _ = rateLimiter.TryReplenish();
 
             await context.Response.WriteAsync(JsonSerializer.Serialize(new
             {

@@ -1,6 +1,3 @@
 namespace WhisperAPI.Exceptions;
 
-public class FileProcessingException : Exception
-{
-    public FileProcessingException(string message) : base(message) { }
-}
+public class FileProcessingException(string message) : Exception(message);

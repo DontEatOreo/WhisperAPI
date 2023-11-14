@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using MediatR;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Queries;
@@ -5,20 +6,14 @@ using Xabe.FFmpeg;
 
 namespace WhisperAPI.Handlers;
 
-public sealed class WavConverterHandler : IRequestHandler<WavConvertQuery, (string, Func<Task>)>
+[UsedImplicitly]
+public sealed class WavConverterHandler(Globals globals) : IRequestHandler<WavConvertQuery, (string, Func<Task>)>
 {
-    private readonly Globals _globals;
-
-    public WavConverterHandler(Globals globals)
-    {
-        _globals = globals;
-    }
-
     private const string Error = "Could not convert file to wav";
 
     public async Task<(string, Func<Task>)> Handle(WavConvertQuery request, CancellationToken token)
     {
-        var audioFolder = _globals.AudioFilesFolder;
+        var audioFolder = globals.AudioFilesFolder;
         var audioFolderExists = Directory.Exists(audioFolder);
         if (!audioFolderExists)
             Directory.CreateDirectory(audioFolder);

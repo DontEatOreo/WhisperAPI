@@ -8,15 +8,8 @@ using WhisperAPI.Models;
 namespace WhisperAPI.Handlers;
 
 [UsedImplicitly]
-public sealed class TranscriptHandler : IRequestHandler<WhisperOptions, JsonResponse>
+public sealed class TranscriptHandler(Globals globals) : IRequestHandler<WhisperOptions, JsonResponse>
 {
-    private readonly Globals _globals;
-
-    public TranscriptHandler(Globals globals)
-    {
-        _globals = globals;
-    }
-
     private const string ErrorProcessing = "Couldn't process the file";
     private const string MissingFile = "File not found";
 
@@ -29,14 +22,14 @@ public sealed class TranscriptHandler : IRequestHandler<WhisperOptions, JsonResp
     public async Task<JsonResponse> Handle(WhisperOptions request, CancellationToken token)
     {
         var modelName = request.WhisperModel.ToString().ToLower();
-        var modelPath = Path.Combine(_globals.WhisperFolder, $"{modelName}.bin");
+        var modelPath = Path.Combine(globals.WhisperFolder, $"{modelName}.bin");
         var modelExists = File.Exists(modelPath);
 
         if (modelExists is false)
         {
             await using var stream = await WhisperGgmlDownloader.GetGgmlModelAsync(request.WhisperModel,
                 QuantizationType.NoQuantization, token);
-            await using var modelStream = File.Create(Path.Combine(_globals.WhisperFolder, $"{modelName}.bin"));
+            await using var modelStream = File.Create(Path.Combine(globals.WhisperFolder, $"{modelName}.bin"));
 
             await stream.CopyToAsync(modelStream, token);
         }

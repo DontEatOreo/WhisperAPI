@@ -10,19 +10,12 @@ namespace WhisperAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public sealed class Transcribe : ControllerBase
+public sealed class Transcribe(
+    ReplenishingRateLimiter rateLimiter,
+    ISender mediator,
+    IContentTypeProvider typeProvider)
+    : ControllerBase
 {
-    private readonly TokenBucketRateLimiter _rateLimiter;
-    private readonly IMediator _mediator;
-    private readonly FileExtensionContentTypeProvider _typeProvider;
-
-    public Transcribe(TokenBucketRateLimiter rateLimiter, IMediator mediator, FileExtensionContentTypeProvider typeProvider)
-    {
-        _rateLimiter = rateLimiter;
-        _mediator = mediator;
-        _typeProvider = typeProvider;
-    }
-
     /// <summary>
     /// Retrieves a transcript of the audio or video file provided in the request.
     /// </summary>
@@ -38,19 +31,19 @@ public sealed class Transcribe : ControllerBase
         if (file is null || file.Length is 0)
             throw new NoFileException("No file provided");
 
-        var isAudio = _typeProvider.TryGetContentType(file.FileName, out var contentType) && contentType.StartsWith("audio/");
-        var isVideo = _typeProvider.TryGetContentType(file.FileName, out contentType) && contentType.StartsWith("video/");
+        var isAudio = typeProvider.TryGetContentType(file.FileName, out var contentType) && contentType.StartsWith("audio/");
+        var isVideo = typeProvider.TryGetContentType(file.FileName, out contentType) && contentType.StartsWith("video/");
         if (!isAudio && !isVideo)
             throw new InvalidFileTypeException("Invalid file type");
 
         WavConvertQuery wavRequest = new(file);
-        var (wavFile, policy) = await _mediator.Send(wavRequest, token);
+        var (wavFile, policy) = await mediator.Send(wavRequest, token);
 
         FormDataQuery formDataQuery = new(wavFile, request);
-        var whisperOptions = await _mediator.Send(formDataQuery, token);
+        var whisperOptions = await mediator.Send(formDataQuery, token);
 
-        var result = await _mediator.Send(whisperOptions, token);
-        _ = _rateLimiter.TryReplenish(); // Replenish the token bucket
+        var result = await mediator.Send(whisperOptions, token);
+        _ = rateLimiter.TryReplenish(); // Replenish the token bucket
 
         HttpContext.Response.OnCompleted(policy);
         return Ok(result);
