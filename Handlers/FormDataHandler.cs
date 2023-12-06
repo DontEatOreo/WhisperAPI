@@ -68,9 +68,12 @@ public sealed class FormDataHandler : IRequestHandler<FormDataQuery, WhisperOpti
     /// <exception cref="InvalidModelException">Thrown when the provided model string is not a valid GgmlType enum value.</exception>
     private static GgmlType ValidateModel(string model)
     {
+        if (model.Contains("large"))
+            model = model.Replace("large", "largev3");
         var parse = Enum.TryParse(model, true, out GgmlType type);
+        
         if (type.ToString().ToLower().Contains("v1"))
-            return GgmlType.Base; // v1 model exists but we don't want to use it
+            return GgmlType.LargeV3; // v1 model exists but we don't want to use it
         if (parse)
             return type;
 
