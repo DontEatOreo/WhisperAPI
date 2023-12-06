@@ -13,7 +13,7 @@ namespace WhisperAPI.Controllers;
 public sealed class Transcribe(
     ReplenishingRateLimiter rateLimiter,
     ISender mediator,
-    IContentTypeProvider typeProvider)
+    FileExtensionContentTypeProvider typeProvider)
     : ControllerBase
 {
     /// <summary>
