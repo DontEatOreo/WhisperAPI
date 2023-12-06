@@ -67,7 +67,7 @@ And with the file as a multipart/form-data field named ``file``.
 Here is a curl example of the request:
 
 ```bash
-curl --location --request GET 'https://localhost:5001/transcribe' \
+curl --location --request POST 'https://localhost:5001/transcribe' \
 --form 'file=@"/path/to/file/"' \
 --form 'lang="ja"' \
 --form 'model="base"' \
