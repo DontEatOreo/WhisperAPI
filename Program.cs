@@ -62,6 +62,7 @@ builder.Services.Configure<TokenBucketRateLimiterOptions>(options =>
     options.ReplenishmentPeriod = tokenBucketOptions.ReplenishmentPeriod;
     options.AutoReplenishment = RateLimitOptions.AutoReplenishment;
 });
+builder.Services.AddSingleton<ReplenishingRateLimiter>(sp => sp.GetRequiredService<TokenBucketRateLimiter>());
 
 // Add services to the builder
 builder.Services.AddSingleton<Globals>();
