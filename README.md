@@ -41,6 +41,12 @@ Translation increase the processing time, sometimes 2x the time! So avoid transl
 
 ## Usage
 
+Before making a request to transcribe a file, you should query the `/models` endpoint to get a list of all available models.
+
+```bash
+curl --location --request GET 'https://localhost:5001/models'
+```
+
 To use WhisperAPI, you will need to send a POST multipart/form-data to the ``/transcribe`` endpoint with the following JSON payload:
 
 ```json
