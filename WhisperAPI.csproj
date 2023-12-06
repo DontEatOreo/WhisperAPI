@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>WhisperAPI</RootNamespace>
-    <Version>3.2.1</Version>
+    <Version>3.3.0</Version>
     <Authors>DontEatOreo</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/DontEatOreo/WhisperAPI</RepositoryUrl>
