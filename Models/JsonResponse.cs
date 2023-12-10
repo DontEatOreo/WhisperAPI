@@ -4,19 +4,52 @@ using JetBrains.Annotations;
 namespace WhisperAPI.Models;
 
 /// <summary>
-/// Represents the JSON response returned by WhisperAPI.
+/// Represents a JSON response.
 /// </summary>
 [UsedImplicitly]
-public sealed record JsonResponse(
-    [property: JsonPropertyName("data")] IEnumerable<ResponseData> Data,
-    [property: JsonPropertyName("count")] int Count);
+public sealed class JsonResponse
+{
+    /// <summary>
+    /// Array of response data.
+    /// </summary>
+    /// <value>
+    /// The list of response data.
+    /// </value>
+    [JsonPropertyName("data")]
+    public List<ResponseData> Data { get; init; } = [];
+
+    /// <summary>
+    /// Count of sentences in the response.
+    /// </summary>
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
+}
 
 /// <summary>
-/// Represents a single response data object in the JSON response.
+/// The base response data.
 /// </summary>
-[UsedImplicitly]
-public sealed record ResponseData(
-    [property: JsonPropertyName("start")] double Start,
-    [property: JsonPropertyName("end")] double End,
-    [property: JsonPropertyName("text")] string Text
-);
+/// <param name="start">Start time of the sentence.</param>
+/// <param name="end">End time of the sentence.</param>
+/// <param name="text">The literal text of the sentence.</param>
+public sealed class ResponseData(double start, double end, string text)
+{
+    /// <summary>
+    /// Start time of the sentence.
+    /// </summary>
+    [UsedImplicitly] public double Start { get; init; } = start;
+
+    /// <summary>
+    /// End time of the sentence.
+    /// </summary>
+    [UsedImplicitly] public double End { get; init; } = end;
+
+    /// <summary>
+    /// The literal text of the sentence.
+    /// </summary>
+    [UsedImplicitly] public string Text { get; init; } = text;
+
+    /// <summary>
+    /// Empty constructor for XML serialization.
+    /// </summary>
+    public ResponseData() : this(0, 0, string.Empty) { }
+}

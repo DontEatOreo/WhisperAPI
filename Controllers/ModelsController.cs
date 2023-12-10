@@ -8,5 +8,6 @@ namespace WhisperAPI.Controllers;
 public class ModelsController : ControllerBase
 {
     [HttpGet]
+    [Produces("application/xml", "application/json")]
     public IActionResult Get() => Ok(Enum.GetNames(typeof(GgmlType)));
 }

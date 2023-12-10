@@ -29,6 +29,8 @@ var builder = WebApplication.CreateBuilder();
 // Add services to the builder
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddMvcCore(o => o.RespectBrowserAcceptHeader = true)
+    .AddXmlSerializerFormatters();
 builder.Services.Configure<KestrelServerOptions>(options =>
 {
     options.Limits.MaxRequestBodySize = long.MaxValue;

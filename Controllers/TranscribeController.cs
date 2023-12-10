@@ -1,3 +1,4 @@
+using System.Text;
 using System.Threading.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +26,7 @@ public sealed class Transcribe(
     /// <returns>The transcript of the audio or video file.</returns>
     [EnableRateLimiting("token")]
     [HttpPost]
+    [Produces("text/plain", "application/xml", "application/json")]
     public async Task<IActionResult> Post([FromForm] TranscriptQuery request, [FromForm] IFormFile file, CancellationToken token)
     {
         // Return if no file is provided
@@ -39,13 +41,30 @@ public sealed class Transcribe(
         WavConvertQuery wavRequest = new(file);
         var (wavFile, policy) = await mediator.Send(wavRequest, token);
 
-        FormDataQuery formDataQuery = new(wavFile, request);
+        var headers = HttpContext.Request.Headers;
+        var language = headers.AcceptLanguage.FirstOrDefault();
+
+        FormDataQuery formDataQuery = new(wavFile, language, request);
         var whisperOptions = await mediator.Send(formDataQuery, token);
 
         var result = await mediator.Send(whisperOptions, token);
         _ = rateLimiter.TryReplenish(); // Replenish the token bucket
 
         HttpContext.Response.OnCompleted(policy);
+
+        /*
+         * By default `text/plain` shouldn't change the response body,
+         * but we're overriding this behavior to return
+         * the literal text of the transcript.
+         */
+        if (headers.Accept.Contains("text/plain"))
+        {
+            StringBuilder sb = new();
+            foreach (var data in result.Data) sb.Append(data.Text);
+
+            return Ok(sb.ToString());
+        }
+
         return Ok(result);
     }
 }

@@ -16,9 +16,7 @@ public sealed class FormDataHandler : IRequestHandler<FormDataQuery, WhisperOpti
 
     public Task<WhisperOptions> Handle(FormDataQuery request, CancellationToken token)
     {
-        string? lang = null;
-        if (request.Query.Lang is not null)
-            lang = ValidateLanguage(request.Query.Lang);
+        var lang = ValidateLanguage(request.Lang);
         var modelEnum = ValidateModel(request.Query.Model.ToLower());
 
         WhisperOptions whisperOptions = new(request.File, lang, request.Query.Translate, modelEnum);
@@ -31,8 +29,14 @@ public sealed class FormDataHandler : IRequestHandler<FormDataQuery, WhisperOpti
     /// <param name="lang">The language string to validate.</param>
     /// <returns>The two-letter ISO language name of the validated language.</returns>
     /// <exception cref="InvalidLanguageException">Thrown when the given language string is not a valid language.</exception>
-    private static string ValidateLanguage(string lang)
+    private static string ValidateLanguage(string? lang)
     {
+        if (string.IsNullOrEmpty(lang))
+        {
+            lang = "auto";
+            return lang;
+        }
+
         lang = lang.Trim().ToLower();
         var isAuto = lang is "auto";
         if (isAuto)
@@ -71,7 +75,7 @@ public sealed class FormDataHandler : IRequestHandler<FormDataQuery, WhisperOpti
         if (model.Contains("large"))
             model = model.Replace("large", "largev3");
         var parse = Enum.TryParse(model, true, out GgmlType type);
-        
+
         if (type.ToString().ToLower().Contains("v1"))
             return GgmlType.LargeV3; // v1 model exists but we don't want to use it
         if (parse)
