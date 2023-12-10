@@ -73,15 +73,15 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
             throw new FileNotFoundException(MissingFile, request.WavFile);
         await using var fileStream = File.OpenRead(request.WavFile);
 
-        List<ResponseData> responses = new();
+        List<ResponseData> responses = [];
         try
         {
             await foreach (var data in processor.ProcessAsync(fileStream, token))
             {
                 ResponseData jsonResponse = new(
-                    data.Start.TotalSeconds,
-                    data.End.TotalSeconds,
-                    data.Text.Trim());
+                data.Start.TotalSeconds,
+                data.End.TotalSeconds,
+                data.Text.TrimEnd());
                 responses.Add(jsonResponse);
             }
         }
@@ -94,7 +94,11 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
             await processor.DisposeAsync();
         }
 
-        JsonResponse root = new(responses, responses.Count);
+        JsonResponse root = new()
+        {
+            Data = responses,
+            Count = responses.Count
+        };
         return root;
     }
 }
