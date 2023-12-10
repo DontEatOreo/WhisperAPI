@@ -43,33 +43,39 @@ Translation increase the processing time, sometimes 2x the time! So avoid transl
 
 Before making a request to transcribe a file, you should query the `/models` endpoint to get a list of all available models.
 
-```bash
+```shell
 curl --location --request GET 'https://localhost:5001/models'
 ```
 
-To use WhisperAPI, you will need to send a POST multipart/form-data to the ``/transcribe`` endpoint with the following JSON payload:
+To use WhisperAPI, you need to send a POST request to the `/transcribe` endpoint with the following form-data payload:
 
-```json
-{
-    "lang": "ja",
-    "model": "base",
-    "translate": true 
-}
+```
+file: @/path/to/file/
+model: String
+translate: Boolean
 ```
 
-And with the file as a multipart/form-data field named ``file``.
+Additionally, you can add headers to the request for language and response type preferences.
 
-`lang` and `translate` are optional properties.
+```
+Accept: application/json
+Accept-Language: en
+```
 
-- If `lang` is omitted, it will automatically detect the language of the file.
-- If `translate` is omitted, it will default to false.
+The file should be provided as a multipart/form-data field named ``file``.
 
-Here is a curl example of the request:
+`translate` is an optional property.
 
-```bash
+- If the `Accept` header is omitted, the API will automatically detect the language of the file.
+- If the `translate` property is omitted, it defaults to false.
+
+Here is an example of a request using curl:
+
+```shell
 curl --location --request POST 'https://localhost:5001/transcribe' \
+--header 'Accept: application/json' \
+--header 'Accept-Language: English' \
 --form 'file=@"/path/to/file/"' \
---form 'lang="ja"' \
 --form 'model="base"' \
 --form 'translate="true"'
 ```
@@ -87,14 +93,40 @@ The response will be a JSON payload with the following format:
     {
       "start": 3,
       "end": 6,
-      "text": "World!"
+      "text": " World!"
     }
   ],
   "count": 2
 }
 ```
 
-On failure (e.g: invalid file format) the response JSON payload will be:
+If `text/plain` is used the response will look like this:
+
+```text
+Hello! World!
+```
+
+If `application/xml` is used the response will look like this:
+
+```xml
+<JsonResponse>
+    <Data>
+        <ResponseData>
+            <Start>0</Start>
+            <End>3</End>
+            <Text>Hello</Text>
+        </ResponseData>
+        <ResponseData>
+            <Start>3</Start>
+            <End>6</End>
+            <Text> World!</Text>
+        </ResponseData>
+    </Data>
+    <Count>2</Count>
+</JsonResponse>
+```
+
+On failure (e.g: invalid file format) the response JSON will be:
 
 ```json
 {
