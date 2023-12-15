@@ -21,15 +21,29 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
     /// <returns>A JSON response containing the processed transcript data.</returns>
     public async Task<JsonResponse> Handle(WhisperOptions request, CancellationToken token)
     {
-        var modelName = request.WhisperModel.ToString().ToLower();
-        var modelPath = Path.Combine(globals.WhisperFolder, $"{modelName}.bin");
-        var modelExists = File.Exists(modelPath);
+        var modelType = request.WhisperModel;
+        var language = request.Language?.ToLower();
 
+        if (language is not null)
+        {
+            modelType = modelType switch
+            {
+                GgmlType.Tiny when language.Contains("en") => GgmlType.TinyEn,
+                GgmlType.Base when language.Contains("en") => GgmlType.BaseEn,
+                GgmlType.Small when language.Contains("en") => GgmlType.SmallEn,
+                GgmlType.Medium when language.Contains("en") => GgmlType.MediumEn,
+                _ => modelType
+            };
+        }
+
+        var modelPath = Path.Combine(globals.WhisperFolder, $"{modelType}.bin");
+        var modelExists = File.Exists(modelPath);
         if (modelExists is false)
         {
-            await using var stream = await WhisperGgmlDownloader.GetGgmlModelAsync(request.WhisperModel,
-                QuantizationType.NoQuantization, token);
-            await using var modelStream = File.Create(Path.Combine(globals.WhisperFolder, $"{modelName}.bin"));
+            await using var stream =
+                await WhisperGgmlDownloader.GetGgmlModelAsync(modelType, cancellationToken: token);
+
+            await using var modelStream = File.Create(modelPath);
 
             await stream.CopyToAsync(modelStream, token);
         }
@@ -47,16 +61,21 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
         var builder = whisperFactory.CreateBuilder()
             .WithThreads(Environment.ProcessorCount);
 
-        var notNull = request.Language is not null;
-        var withLanguage = notNull && request.Language is not "auto";
-        var autoLanguage = notNull && request.Language is "auto";
-        if (withLanguage)
-            builder = builder.WithLanguage(request.Language!);
-        if (autoLanguage)
+        if (language is not null)
+        {
+            var withLanguage = request.Language is not "auto";
+            if (withLanguage)
+                builder = builder.WithLanguage(request.Language!);
+        }
+        else
+        {
             builder = builder.WithLanguageDetection();
+        }
 
         if (request.Translate)
+        {
             builder = builder.WithTranslate();
+        }
 
         WhisperProcessor processor;
         try
