@@ -8,7 +8,7 @@ using WhisperAPI.Models;
 namespace WhisperAPI.Handlers;
 
 [UsedImplicitly]
-public sealed class TranscriptHandler(Globals globals) : IRequestHandler<WhisperOptions, JsonResponse>
+public sealed class TranscriptHandler(Globals globals) : IRequestHandler<WhisperOptions, List<SegmentData>>
 {
     private const string ErrorProcessing = "Couldn't process the file";
     private const string MissingFile = "File not found";
@@ -19,7 +19,7 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
     /// <param name="request">The request containing the options for processing the transcript file.</param>
     /// <param name="token">The cancellation token.</param>
     /// <returns>A JSON response containing the processed transcript data.</returns>
-    public async Task<JsonResponse> Handle(WhisperOptions request, CancellationToken token)
+    public async Task<List<SegmentData>> Handle(WhisperOptions request, CancellationToken token)
     {
         var modelType = request.WhisperModel;
         var language = request.Language?.ToLower();
@@ -92,17 +92,11 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
             throw new FileNotFoundException(MissingFile, request.WavFile);
         await using var fileStream = File.OpenRead(request.WavFile);
 
-        List<ResponseData> responses = [];
+        List<SegmentData> segments = [];
         try
         {
             await foreach (var data in processor.ProcessAsync(fileStream, token))
-            {
-                ResponseData jsonResponse = new(
-                data.Start.TotalSeconds,
-                data.End.TotalSeconds,
-                data.Text.TrimEnd());
-                responses.Add(jsonResponse);
-            }
+                segments.Add(data);
         }
         catch (Exception)
         {
@@ -113,11 +107,6 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
             await processor.DisposeAsync();
         }
 
-        JsonResponse root = new()
-        {
-            Data = responses,
-            Count = responses.Count
-        };
-        return root;
+        return segments;
     }
 }

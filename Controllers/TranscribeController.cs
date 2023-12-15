@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
+using WhisperAPI.Models;
 using WhisperAPI.Queries;
 
 namespace WhisperAPI.Controllers;
@@ -60,11 +61,20 @@ public sealed class Transcribe(
         if (headers.Accept.Contains("text/plain"))
         {
             StringBuilder sb = new();
-            foreach (var data in result.Data) sb.Append(data.Text);
-
+            result.ForEach(data => sb.Append(data.Text.Trim()));
             return Ok(sb.ToString());
         }
 
-        return Ok(result);
+        // If the user has made a request with `application/xml` it will convert the response to XML automatically
+        JsonResponse jsonResponse = new()
+        {
+            Data = result.Select(data => new ResponseData(
+                data.Start.TotalSeconds,
+                data.End.TotalSeconds,
+                data.Text.Trim())).ToList(),
+            Count = result.Count
+        };
+
+        return Ok(jsonResponse);
     }
 }

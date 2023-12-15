@@ -6,7 +6,6 @@ namespace WhisperAPI.Models;
 /// <summary>
 /// Represents a JSON response.
 /// </summary>
-[UsedImplicitly]
 public sealed class JsonResponse
 {
     /// <summary>
