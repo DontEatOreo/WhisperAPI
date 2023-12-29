@@ -46,9 +46,4 @@ public sealed class ResponseData(double start, double end, string text)
     /// The literal text of the sentence.
     /// </summary>
     [UsedImplicitly] public string Text { get; init; } = text;
-
-    /// <summary>
-    /// Empty constructor for XML serialization.
-    /// </summary>
-    public ResponseData() : this(0, 0, string.Empty) { }
 }
