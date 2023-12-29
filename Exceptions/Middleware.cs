@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Mime;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
@@ -14,7 +15,7 @@ public class Middleware(RequestDelegate next, ReplenishingRateLimiter rateLimite
         }
         catch (Exception e)
         {
-            context.Response.ContentType = "application/json";
+            context.Response.ContentType = MediaTypeNames.Application.Json;
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
             context.Response.StatusCode = e switch
