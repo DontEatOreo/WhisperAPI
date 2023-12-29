@@ -24,14 +24,14 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
         var modelType = request.WhisperModel;
         var language = request.Language?.ToLower();
 
-        if (language is not null)
+        if (language?.Contains("en") is true)
         {
             modelType = modelType switch
             {
-                GgmlType.Tiny when language.Contains("en") => GgmlType.TinyEn,
-                GgmlType.Base when language.Contains("en") => GgmlType.BaseEn,
-                GgmlType.Small when language.Contains("en") => GgmlType.SmallEn,
-                GgmlType.Medium when language.Contains("en") => GgmlType.MediumEn,
+                GgmlType.Tiny => GgmlType.TinyEn,
+                GgmlType.Base => GgmlType.BaseEn,
+                GgmlType.Small => GgmlType.SmallEn,
+                GgmlType.Medium => GgmlType.MediumEn,
                 _ => modelType
             };
         }
@@ -40,8 +40,8 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
         var modelExists = File.Exists(modelPath);
         if (modelExists is false)
         {
-            await using var stream =
-                await WhisperGgmlDownloader.GetGgmlModelAsync(modelType, cancellationToken: token);
+            await using var stream = await WhisperGgmlDownloader
+                    .GetGgmlModelAsync(modelType, cancellationToken: token);
 
             await using var modelStream = File.Create(modelPath);
 
@@ -60,22 +60,13 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
 
         var builder = whisperFactory.CreateBuilder()
             .WithThreads(Environment.ProcessorCount);
+        
+        builder = language?.Contains("auto") is false 
+            ? builder.WithLanguage(language)
+            : builder.WithLanguageDetection();
 
-        if (language is not null)
-        {
-            var withLanguage = request.Language is not "auto";
-            if (withLanguage)
-                builder = builder.WithLanguage(request.Language!);
-        }
-        else
-        {
-            builder = builder.WithLanguageDetection();
-        }
-
-        if (request.Translate)
-        {
+        if (request.Translate) 
             builder = builder.WithTranslate();
-        }
 
         WhisperProcessor processor;
         try
@@ -88,8 +79,11 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
         }
 
         var wavExists = File.Exists(request.WavFile);
-        if (!wavExists)
+        if (wavExists is false)
+        {
+            await processor.DisposeAsync();
             throw new FileNotFoundException(MissingFile, request.WavFile);
+        }
         await using var fileStream = File.OpenRead(request.WavFile);
 
         List<SegmentData> segments = [];
