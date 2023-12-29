@@ -27,7 +27,7 @@ public sealed class Transcribe(
     /// <returns>The transcript of the audio or video file.</returns>
     [EnableRateLimiting("token")]
     [HttpPost]
-    [Produces(MediaTypeNames.Text.Plain,MediaTypeNames.Application.Xml, MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Text.Plain, MediaTypeNames.Application.Xml, MediaTypeNames.Application.Json)]
     public async Task<IActionResult> Post([FromForm] TranscriptQuery request, [FromForm] IFormFile file, CancellationToken token)
     {
         // Return if no file is provided

@@ -60,12 +60,12 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
 
         var builder = whisperFactory.CreateBuilder()
             .WithThreads(Environment.ProcessorCount);
-        
-        builder = language?.Contains("auto") is false 
+
+        builder = language?.Contains("auto") is false
             ? builder.WithLanguage(language)
             : builder.WithLanguageDetection();
 
-        if (request.Translate) 
+        if (request.Translate)
             builder = builder.WithTranslate();
 
         WhisperProcessor processor;
