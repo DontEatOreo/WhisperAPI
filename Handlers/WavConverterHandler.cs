@@ -18,21 +18,16 @@ public sealed class WavConverterHandler(Globals globals) : IRequestHandler<WavCo
         if (!audioFolderExists)
             Directory.CreateDirectory(audioFolder);
 
-        var extension = request.Stream.ContentType[request.Stream.ContentType.IndexOf("/",
-            StringComparison.Ordinal)..][1..];
+        var extension = request.Stream.ContentType[request.Stream.ContentType.IndexOf('/')..][1..];
         extension = extension.Insert(0, ".");
 
         var reqFle = Path.Combine(audioFolder, $"{Guid.NewGuid().ToString()[..4]}{extension}");
         var wavFile = Path.Combine(audioFolder, $"{Guid.NewGuid().ToString()[..4]}.wav");
 
-        var task = () =>
+        await using (var reqFileTemp = File.Create(reqFle))
         {
-            File.Delete(reqFle);
-            File.Delete(wavFile);
-            return Task.CompletedTask;
-        };
-
-        await request.Stream.CopyToAsync(File.Create(reqFle), token);
+            await request.Stream.CopyToAsync(reqFileTemp, token);
+        }
 
         var mediaInfo = await FFmpeg.GetMediaInfo(reqFle, token);
         var audioStream = mediaInfo.AudioStreams.FirstOrDefault();
@@ -53,6 +48,13 @@ public sealed class WavConverterHandler(Globals globals) : IRequestHandler<WavCo
         {
             throw new FileProcessingException(Error);
         }
+
+        var task = () =>
+        {
+            File.Delete(reqFle);
+            File.Delete(wavFile);
+            return Task.CompletedTask;
+        };
 
         return (wavFile, task);
     }
