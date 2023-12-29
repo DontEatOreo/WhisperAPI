@@ -58,12 +58,8 @@ public sealed class Transcribe(
          * but we're overriding this behavior to return
          * the literal text of the transcript.
          */
-        if (headers.Accept.Contains("text/plain"))
-        {
-            StringBuilder sb = new();
-            result.ForEach(data => sb.Append(data.Text.Trim()));
-            return Ok(sb.ToString());
-        }
+        if (headers.Accept.Contains(MediaTypeNames.Text.Plain))
+            return Ok(string.Join(" ", result.Select(data => data.Text.Trim())));
 
         // If the user has made a request with `application/xml` it will convert the response to XML automatically
         JsonResponse jsonResponse = new()
