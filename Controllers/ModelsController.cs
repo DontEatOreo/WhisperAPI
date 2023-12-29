@@ -1,3 +1,4 @@
+using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
 using Whisper.net.Ggml;
 
@@ -8,6 +9,6 @@ namespace WhisperAPI.Controllers;
 public class ModelsController : ControllerBase
 {
     [HttpGet]
-    [Produces("application/xml", "application/json")]
+    [Produces(MediaTypeNames.Application.Xml, MediaTypeNames.Application.Json)]
     public IActionResult Get() => Ok(Enum.GetNames(typeof(GgmlType)));
 }
