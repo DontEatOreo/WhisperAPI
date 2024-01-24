@@ -23,17 +23,10 @@ public sealed class TranscriptHandler(Globals globals) : IRequestHandler<Whisper
     {
         var modelType = request.WhisperModel;
         var language = request.Language?.ToLower();
-
-        // Prepare the model
         modelType = PrepareModel(modelType, language);
         var whisperFactory = await GetWhisperFactory(modelType, token);
-
-        // Create the processor
         var processor = CreateProcessor(language, request, whisperFactory);
-
-        // Process the transcript
         var segments = await ProcessTranscript(request, processor, token);
-
         return segments;
     }
 
