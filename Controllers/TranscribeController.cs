@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Queries;
+// ReSharper disable SuggestBaseTypeForParameterInConstructor
 
 namespace WhisperAPI.Controllers;
 
