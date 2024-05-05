@@ -13,4 +13,4 @@ appsettings.*.json
 !important!.vscode/tasks.json
 !important!.vscode/launch.json
 !important!.vscode/extensions.json
-!important!.vscode/*.code-snippets
+!important!.vscode/*.code-snippets.devenv
