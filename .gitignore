@@ -9,6 +9,9 @@ appsettings.*.json
 *.user
 *.suio
 
+.devenv/
+.direnv/
+
 !important!.vscode/settings.json
 !important!.vscode/tasks.json
 !important!.vscode/launch.json
