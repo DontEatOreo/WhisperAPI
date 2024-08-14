@@ -1,9 +1,11 @@
 using System.Net.Mime;
+using System.Text;
 using System.Threading.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
+using Whisper.net;
 using WhisperAPI.Exceptions;
 using WhisperAPI.Models;
 using WhisperAPI.Queries;
@@ -28,7 +30,7 @@ public sealed class Transcribe(
     /// <returns>The transcript of the audio or video file.</returns>
     [EnableRateLimiting("token")]
     [HttpPost]
-    [Produces(MediaTypeNames.Text.Plain, MediaTypeNames.Application.Xml, MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Text.Plain, MediaTypeNames.Application.Xml, MediaTypeNames.Application.Json, "application/x-subrip")]
     public async Task<IActionResult> Post([FromForm] TranscriptQuery request, [FromForm] IFormFile file, CancellationToken token)
     {
         // Return if no file is provided
@@ -62,6 +64,12 @@ public sealed class Transcribe(
         if (headers.Accept.Contains(MediaTypeNames.Text.Plain))
             return Ok(string.Join(" ", result.Select(data => data.Text.Trim())));
 
+        if (headers.Accept.Contains("application/x-subrip"))
+        {
+            var srtContent = GenerateSrtSubs(result);
+            return File(Encoding.UTF8.GetBytes(srtContent), "application/x-subrip");
+        }
+
         // If the user has made a request with `application/xml` it will convert the response to XML automatically
         JsonResponse jsonResponse = new()
         {
@@ -74,4 +82,25 @@ public sealed class Transcribe(
 
         return Ok(jsonResponse);
     }
+
+    private static string GenerateSrtSubs(IEnumerable<SegmentData> transcriptData)
+    {
+        StringBuilder sb = new();
+        var transcriptList = transcriptData.ToList();
+
+        for (var i = 0; i < transcriptList.Count; i++)
+        {
+            var data = transcriptList[i];
+            sb.AppendLine((i + 1).ToString());
+            sb.AppendLine($"{FormatTime(data.Start)} --> {FormatTime(data.End)}");
+            sb.AppendLine(data.Text.Trim());
+            sb.AppendLine();
+        }
+
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatTime(TimeSpan time) =>
+        $"{time.Hours:D2}:{time.Minutes:D2}:{time.Seconds:D2},{time.Milliseconds:D3}";
 }

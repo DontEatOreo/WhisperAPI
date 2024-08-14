@@ -126,6 +126,18 @@ If `application/xml` is used the response will look like this:
 </JsonResponse>
 ```
 
+If `application/x-subrip` is used the response will look like this:
+
+```plaintext
+1
+00:00:00,000 --> 00:00:05,000
+Hello
+
+2
+00:00:05,000 --> 00:00:10,000
+World
+```
+
 On failure (e.g: invalid file format) the response JSON will be:
 
 ```json
