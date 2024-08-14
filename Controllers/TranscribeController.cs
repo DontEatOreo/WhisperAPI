@@ -56,31 +56,40 @@ public sealed class Transcribe(
 
         HttpContext.Response.OnCompleted(policy);
 
-        /*
-         * By default `text/plain` shouldn't change the response body,
-         * but we're overriding this behavior to return
-         * the literal text of the transcript.
-         */
-        if (headers.Accept.Contains(MediaTypeNames.Text.Plain))
-            return Ok(string.Join(" ", result.Select(data => data.Text.Trim())));
+        var acceptHeader = headers.Accept.FirstOrDefault();
 
-        if (headers.Accept.Contains("application/x-subrip"))
+        switch (acceptHeader)
         {
-            var srtContent = GenerateSrtSubs(result);
-            return File(Encoding.UTF8.GetBytes(srtContent), "application/x-subrip");
+            /*
+            * By default, `text/plain` shouldn't change the response body,
+            * but we're overriding this behavior to return
+            * the literal text of the transcript.
+            */
+            case MediaTypeNames.Text.Plain:
+                return Ok(string.Join(" ", result.Select(data => data.Text.Trim())));
+            
+            case MediaTypeNames.Application.Json:
+                JsonResponse jsonResponse = new()
+                {
+                    Data = result.Select(data => new ResponseData(
+                        data.Start.TotalSeconds,
+                        data.End.TotalSeconds,
+                        data.Text.Trim())).ToList(),
+                    Count = result.Count
+                };
+                return Ok(jsonResponse);
+
+            case "application/x-subrip":
+                var srtContent = GenerateSrtSubs(result);
+                return File(Encoding.UTF8.GetBytes(srtContent), "application/x-subrip");
+
+            case "application/xml":
+                // If the user has made a request with `application/xml` it will convert the response to XML automatically
+                return Ok(result);
+
+            default:
+                return BadRequest("Unsupported media type");
         }
-
-        // If the user has made a request with `application/xml` it will convert the response to XML automatically
-        JsonResponse jsonResponse = new()
-        {
-            Data = result.Select(data => new ResponseData(
-                data.Start.TotalSeconds,
-                data.End.TotalSeconds,
-                data.Text.Trim())).ToList(),
-            Count = result.Count
-        };
-
-        return Ok(jsonResponse);
     }
 
     private static string GenerateSrtSubs(IEnumerable<SegmentData> transcriptData)
